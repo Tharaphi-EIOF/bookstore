@@ -100,7 +100,7 @@ const AdminLayout = () => {
       )}
       <div className="flex-1 min-w-0">
         <ScrollProgressBar topClassName="top-0" widthClassName="w-full" />
-        <div className="luxe-glass-nav sticky top-3 z-20 mx-4 mt-3 flex items-center justify-between rounded-2xl px-4 py-3 sm:px-6">
+        <div className="luxe-glass-nav sticky top-4 z-20 mx-4 mt-4 flex items-center justify-between rounded-2xl px-4 py-3 sm:px-6">
           <button
             type="button"
             className="metal-button inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-150 hover:border-[var(--admin-accent-border)] lg:hidden"
@@ -154,39 +154,43 @@ const AdminLayout = () => {
                 )}
               </span>
             </button>
-            <button
-              type="button"
-              onClick={() => setMenuOpen((prev) => !prev)}
-              className="metal-button inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-150 hover:border-[var(--admin-accent-border)]"
-            >
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--admin-accent)] text-xs font-semibold text-white dark:text-slate-950">
-                {user?.name?.charAt(0).toUpperCase() || 'U'}
-              </span>
-              <span className="max-w-[180px] truncate">{user?.name || 'Account'}</span>
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            {menuOpen && (
-              <div className="luxe-panel absolute right-0 z-40 mt-3 w-64 bg-white/95 p-3 dark:bg-slate-900/95">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{user?.name}</p>
-                <p className="truncate text-xs text-slate-500">{user?.email}</p>
-                {roleLabel && (
-                  <span className="mt-2 inline-flex rounded-full border border-[var(--admin-accent-border)] bg-[var(--admin-accent-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--admin-accent)]">
-                    {roleLabel}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => logout.mutate()}
-                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 transition-all duration-150 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/30"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Logout
-                </button>
-              </div>
-            )}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuOpen((prev) => !prev)}
+                className="metal-button inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-150 hover:border-[var(--admin-accent-border)]"
+              >
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--admin-accent)] text-xs font-semibold text-white dark:text-slate-950">
+                  {user?.name?.charAt(0).toUpperCase() || 'U'}
+                </span>
+                <span className="max-w-[180px] truncate">{user?.name || 'Account'}</span>
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              {menuOpen && (
+                <div className="luxe-panel absolute right-0 top-full z-40 mt-4 w-64 bg-white/95 p-3 dark:bg-slate-900/95">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{user?.name}</p>
+                  <p className="truncate text-xs text-slate-500">{user?.email}</p>
+                  {roleLabel && (
+                    <span className="mt-2 inline-flex rounded-full border border-[var(--admin-accent-border)] bg-[var(--admin-accent-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--admin-accent)]">
+                      {roleLabel}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => logout.mutate()}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 transition-all duration-150 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        <Outlet />
+        <div className="pt-4">
+          <Outlet />
+        </div>
       </div>
     </div>
   )

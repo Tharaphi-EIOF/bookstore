@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api, getErrorMessage } from '@/lib/api'
+import { signOutWithClerk } from '@/lib/clerk-session'
 import {
   LoginData,
   RegisterData,
@@ -41,11 +42,18 @@ interface JwtPayload {
   shortBio?: string | null
   about?: string | null
   coverImage?: string | null
+  location?: string | null
+  website?: string | null
+  timezone?: string | null
+  language?: string | null
   showEmail?: boolean
   showFollowers?: boolean
   showFollowing?: boolean
   showFavorites?: boolean
   showLikedPosts?: boolean
+  emailUpdatesEnabled?: boolean
+  followerAlertsEnabled?: boolean
+  marketingEmailsEnabled?: boolean
   supportEnabled?: boolean
   supportUrl?: string | null
   supportQrImage?: string | null
@@ -93,11 +101,18 @@ export const useLogin = () => {
           shortBio: decoded.shortBio || null,
           about: decoded.about || null,
           coverImage: decoded.coverImage || null,
+          location: decoded.location || null,
+          website: decoded.website || null,
+          timezone: decoded.timezone || 'UTC',
+          language: decoded.language || 'en',
           showEmail: decoded.showEmail ?? false,
           showFollowers: decoded.showFollowers ?? true,
           showFollowing: decoded.showFollowing ?? true,
           showFavorites: decoded.showFavorites ?? false,
           showLikedPosts: decoded.showLikedPosts ?? false,
+          emailUpdatesEnabled: decoded.emailUpdatesEnabled ?? true,
+          followerAlertsEnabled: decoded.followerAlertsEnabled ?? true,
+          marketingEmailsEnabled: decoded.marketingEmailsEnabled ?? false,
           supportEnabled: decoded.supportEnabled ?? false,
           supportUrl: decoded.supportUrl ?? null,
           supportQrImage: decoded.supportQrImage ?? null,
@@ -177,6 +192,19 @@ export const useResetPassword = () => {
   })
 }
 
+export const useChangePassword = () => {
+  return useMutation({
+    mutationFn: async (payload: { currentPassword: string; newPassword: string }): Promise<{ message: string }> => {
+      try {
+        const response = await api.post('/auth/change-password', payload)
+        return response.data
+      } catch (error) {
+        throw new Error(getErrorMessage(error))
+      }
+    },
+  })
+}
+
 export const useLogout = () => {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -185,7 +213,7 @@ export const useLogout = () => {
 
   return useMutation({
     mutationFn: async () => {
-      return Promise.resolve()
+      await signOutWithClerk()
     },
     onSuccess: () => {
       logout()
@@ -205,11 +233,18 @@ export type UpdateProfileData = {
   shortBio?: string
   about?: string
   coverImage?: string
+  location?: string
+  website?: string
+  timezone?: string
+  language?: string
   showEmail?: boolean
   showFollowers?: boolean
   showFollowing?: boolean
   showFavorites?: boolean
   showLikedPosts?: boolean
+  emailUpdatesEnabled?: boolean
+  followerAlertsEnabled?: boolean
+  marketingEmailsEnabled?: boolean
   supportEnabled?: boolean
   supportUrl?: string
   supportQrImage?: string

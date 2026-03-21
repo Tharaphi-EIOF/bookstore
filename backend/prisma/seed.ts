@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { PrismaClient, Role, NotificationType } from '@prisma/client';
+import { PrismaClient, Role, NotificationType, ReadingStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -18,6 +18,9 @@ async function main() {
 
   // Clear existing data
   console.log('🧹 Clearing existing data...');
+  await prisma.partnerSettlement.deleteMany();
+  await prisma.partnerConsignmentDeal.deleteMany();
+  await prisma.bookLead.deleteMany();
   await prisma.purchaseOrderItem.deleteMany();
   await prisma.purchaseOrder.deleteMany();
   await prisma.vendor.deleteMany();
@@ -41,17 +44,53 @@ async function main() {
   await prisma.staffPermission.deleteMany();
   await prisma.staffProfile.deleteMany();
   await prisma.department.deleteMany();
+  await prisma.blogNotification.deleteMany();
+  await prisma.blogPostBookReference.deleteMany();
+  await prisma.blogPostTag.deleteMany();
+  await prisma.blogPostAnonymousView.deleteMany();
+  await prisma.blogPostView.deleteMany();
+  await prisma.blogLike.deleteMany();
+  await prisma.blogComment.deleteMany();
+  await prisma.blogTag.deleteMany();
+  await prisma.authorFollow.deleteMany();
+  await prisma.authorBlog.deleteMany();
+  await prisma.blogPageSetting.deleteMany();
   await prisma.notification.deleteMany();
+  await prisma.loyaltyRedemption.deleteMany();
+  await prisma.loyaltyReward.deleteMany();
+  await prisma.stickerLedger.deleteMany();
   await prisma.promotionCode.deleteMany();
+  await prisma.returnRequest.deleteMany();
+  await prisma.savedAddress.deleteMany();
+  await prisma.stockAlertSubscription.deleteMany();
+  await prisma.userBookAccess.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
+  await prisma.ebookHighlight.deleteMany();
+  await prisma.ebookNote.deleteMany();
+  await prisma.ebookBookmark.deleteMany();
+  await prisma.ebookProgress.deleteMany();
+  await prisma.readingSession.deleteMany();
+  await prisma.readingItem.deleteMany();
+  await prisma.favoriteItem.deleteMany();
+  await prisma.wishlistItem.deleteMany();
   await prisma.cartItem.deleteMany();
   await prisma.review.deleteMany();
   await prisma.book.deleteMany();
   await prisma.user.deleteMany();
 
-  // Create admin user
-  console.log('👤 Creating admin user...');
+  // Create super admin and admin users
+  console.log('👤 Creating super admin and admin users...');
+  const superAdminPassword = await bcrypt.hash('superadmin123', 10);
+  await prisma.user.create({
+    data: {
+      email: 'superadmin@bookstore.com',
+      password: superAdminPassword,
+      name: 'Super Admin',
+      role: Role.SUPER_ADMIN,
+    },
+  });
+
   const adminPassword = await bcrypt.hash('admin123', 10);
   const adminUser = await prisma.user.create({
     data: {
@@ -124,12 +163,116 @@ async function main() {
           password: userPassword,
           name: user.name,
           role: Role.USER,
+          avatarType: 'emoji',
+          avatarValue: `avatar-${(extraUsersData.indexOf(user) % 8) + 1}`,
+          backgroundColor: ['bg-rose-100', 'bg-sky-100', 'bg-amber-100', 'bg-emerald-100'][
+            extraUsersData.indexOf(user) % 4
+          ],
+          pronouns: ['she/her', 'he/him', 'they/them'][extraUsersData.indexOf(user) % 3],
+          shortBio: `${user.name.split(' ')[0]} is building a reading list that mixes fiction, essays, and poetry.`,
+          about:
+            'Enjoys bookstore discoveries, writing marginal notes, and testing every shelf in the app.',
+          location: ['San Francisco, CA', 'Austin, TX', 'New York, NY', 'Seattle, WA'][
+            extraUsersData.indexOf(user) % 4
+          ],
+          timezone: ['America/Los_Angeles', 'America/Chicago', 'America/New_York'][
+            extraUsersData.indexOf(user) % 3
+          ],
+          language: 'en',
+          showFollowers: true,
+          showFollowing: true,
+          showFavorites: extraUsersData.indexOf(user) % 2 === 0,
+          showLikedPosts: extraUsersData.indexOf(user) % 3 === 0,
+          supportEnabled: extraUsersData.indexOf(user) % 5 === 0,
+          supportUrl:
+            extraUsersData.indexOf(user) % 5 === 0
+              ? `https://buymeacoffee.com/${user.name.toLowerCase().replace(/\s+/g, '-')}`
+              : null,
+          supportQrImage:
+            extraUsersData.indexOf(user) % 5 === 0
+              ? `https://example.com/qr/${user.name.toLowerCase().replace(/\s+/g, '-')}.png`
+              : null,
         },
       }),
     ),
   );
 
   const users = [...coreUsers, ...extraUsers];
+
+  await prisma.user.updateMany({
+    where: { id: { in: users.slice(0, 8).map((user) => user.id) } },
+    data: {
+      showFavorites: true,
+      showLikedPosts: true,
+    },
+  });
+
+  await prisma.user.update({
+    where: { id: adminUser.id },
+    data: {
+      avatarType: 'emoji',
+      avatarValue: 'avatar-9',
+      backgroundColor: 'bg-stone-200',
+      pronouns: 'they/them',
+      shortBio: 'Keeps the store catalog, staff tools, and community features in order.',
+      about:
+        'System administrator profile used for moderation, inventory approval, and high-level test flows.',
+      location: 'Head Office',
+      timezone: 'America/New_York',
+      supportEnabled: false,
+    },
+  });
+
+  const enrichedCoreUsers = await Promise.all(
+    [
+      {
+        id: coreUsers[0].id,
+        pronouns: 'he/him',
+        shortBio: 'Reads literary fiction and writes late-night review drafts.',
+        location: 'San Francisco, CA',
+        supportEnabled: true,
+      },
+      {
+        id: coreUsers[1].id,
+        pronouns: 'she/her',
+        shortBio: 'Tracks every recommendation and keeps a dense favorites shelf.',
+        location: 'New York, NY',
+        supportEnabled: false,
+      },
+      {
+        id: coreUsers[2].id,
+        pronouns: 'he/him',
+        shortBio: 'Buys science fiction in bulk and leaves blunt but useful reviews.',
+        location: 'Austin, TX',
+        supportEnabled: true,
+      },
+    ].map((profile, index) =>
+      prisma.user.update({
+        where: { id: profile.id },
+        data: {
+          avatarType: 'emoji',
+          avatarValue: `avatar-${index + 1}`,
+          backgroundColor: ['bg-sky-100', 'bg-lime-100', 'bg-orange-100'][index],
+          pronouns: profile.pronouns,
+          shortBio: profile.shortBio,
+          about:
+            'Seeded profile for testing community, reading, and storefront behavior across multiple features.',
+          location: profile.location,
+          timezone: ['America/Los_Angeles', 'America/New_York', 'America/Chicago'][index],
+          showFavorites: true,
+          showLikedPosts: true,
+          supportEnabled: profile.supportEnabled,
+          supportUrl: profile.supportEnabled
+            ? `https://example.com/support/${index + 1}`
+            : null,
+          supportQrImage: profile.supportEnabled
+            ? `https://example.com/support/${index + 1}.png`
+            : null,
+        },
+      }),
+    ),
+  );
+  users.splice(0, enrichedCoreUsers.length, ...enrichedCoreUsers);
 
   console.log('🔔 Creating sample notifications...');
   const notificationTemplates: Array<{
@@ -179,6 +322,18 @@ async function main() {
       data: notificationSeedData,
     });
   }
+
+  await prisma.blogPageSetting.create({
+    data: {
+      id: 'main',
+      eyebrow: 'Treasure House Journal',
+      title: 'Essays, Poems, and Reading Notes',
+      introLines: [
+        'A shared writing desk for readers, reviewers, and poets.',
+        'Use this seeded page to test publishing, moderation, reactions, follows, and support links.',
+      ],
+    },
+  });
 
   await prisma.promotionCode.createMany({
     data: [
@@ -1613,7 +1768,7 @@ async function main() {
       if (book.genres.length > 0) {
         return Promise.resolve(null);
       }
-      const fallbackGenres = [...new Set(book.categories)].slice(0, 3);
+      const fallbackGenres = Array.from(new Set(book.categories)).slice(0, 3);
       return prisma.book.update({
         where: { id: book.id },
         data: {
@@ -1753,7 +1908,7 @@ async function main() {
     { city: 'Boston', state: 'MA', country: 'USA', zip: '02108' },
   ];
 
-  const createdOrders: Array<{ id: string; status: string }> = [];
+  const createdOrders: Array<{ id: string; status: string; userId: string }> = [];
   let createdOrderItemsCount = 0;
   for (let i = 0; i < 16; i += 1) {
     const buyer = users[i % users.length];
@@ -1798,7 +1953,7 @@ async function main() {
     });
 
     createdOrderItemsCount += pickedBooks.length;
-    createdOrders.push({ id: createdOrder.id, status });
+    createdOrders.push({ id: createdOrder.id, status, userId: buyer.id });
   }
 
   // Create warehouses + stock distribution + transfers/alerts
@@ -2284,8 +2439,974 @@ async function main() {
     }),
   });
 
+  console.log('🏪 Creating stores and in-store inventory...');
+  const storeSeeds = [
+    {
+      code: 'STORE-SF-01',
+      name: 'Downtown San Francisco Books',
+      city: 'San Francisco',
+      state: 'CA',
+      address: '45 Mission St, San Francisco, CA',
+      phone: '+1-415-555-0101',
+      email: 'sf-store@bookstore.example',
+      isActive: true,
+    },
+    {
+      code: 'STORE-NY-01',
+      name: 'Manhattan Reading Room',
+      city: 'New York',
+      state: 'NY',
+      address: '220 W 14th St, New York, NY',
+      phone: '+1-212-555-0192',
+      email: 'ny-store@bookstore.example',
+      isActive: true,
+    },
+    {
+      code: 'STORE-AUS-01',
+      name: 'Austin Book Loft',
+      city: 'Austin',
+      state: 'TX',
+      address: '118 Congress Ave, Austin, TX',
+      phone: '+1-512-555-0184',
+      email: 'austin-store@bookstore.example',
+      isActive: true,
+    },
+  ];
+
+  const stores = await Promise.all(
+    storeSeeds.map((store) =>
+      prisma.store.upsert({
+        where: { code: store.code },
+        update: store,
+        create: store,
+      }),
+    ),
+  );
+
+  const storeStockRows = Array.from({ length: 24 }, (_, i) => ({
+    storeId: stores[i % stores.length].id,
+    bookId: books[(i * 2 + 1) % books.length].id,
+    stock: 1 + (i % 11),
+    lowStockThreshold: 2 + (i % 4),
+    createdAt: daysAgo(18 - (i % 10), 10),
+    updatedAt: daysAgo(i % 7, 13),
+  }));
+  await prisma.storeStock.createMany({
+    data: storeStockRows,
+    skipDuplicates: true,
+  });
+
+  const storeTransfers = await Promise.all(
+    Array.from({ length: 9 }, (_, i) =>
+      prisma.storeTransfer.create({
+        data: {
+          bookId: books[(i * 3 + 4) % books.length].id,
+          fromWarehouseId: warehouses[i % warehouses.length].id,
+          toStoreId: stores[i % stores.length].id,
+          quantity: 2 + (i % 5),
+          note: i % 2 === 0 ? 'Initial shelf fill for store pickup' : 'Weekly replenishment',
+          createdByUserId: staffSeedUsers[1].id,
+          createdAt: daysAgo(14 - i, 11 + (i % 4)),
+        },
+      }),
+    ),
+  );
+
+  console.log('🏠 Creating customer saved addresses, wishlist, favorites, and stock alerts...');
+  const savedAddresses = await Promise.all(
+    users.slice(0, 8).flatMap((user, index) => [
+      prisma.savedAddress.create({
+        data: {
+          userId: user.id,
+          label: 'Home',
+          fullName: user.name,
+          email: user.email,
+          phone: `+1-555-20${String(index).padStart(2, '0')}`,
+          address: `${120 + index} Elm Street`,
+          city: cityStateCountry[index % cityStateCountry.length].city,
+          state: cityStateCountry[index % cityStateCountry.length].state,
+          zipCode: cityStateCountry[index % cityStateCountry.length].zip,
+          country: cityStateCountry[index % cityStateCountry.length].country,
+          isDefault: true,
+        },
+      }),
+      prisma.savedAddress.create({
+        data: {
+          userId: user.id,
+          label: 'Office',
+          fullName: user.name,
+          email: user.email,
+          phone: `+1-555-30${String(index).padStart(2, '0')}`,
+          address: `${20 + index} Library Plaza`,
+          city: cityStateCountry[(index + 1) % cityStateCountry.length].city,
+          state: cityStateCountry[(index + 1) % cityStateCountry.length].state,
+          zipCode: cityStateCountry[(index + 1) % cityStateCountry.length].zip,
+          country: cityStateCountry[(index + 1) % cityStateCountry.length].country,
+          isDefault: false,
+        },
+      }),
+    ]),
+  );
+
+  await prisma.wishlistItem.createMany({
+    data: users.slice(0, 12).flatMap((user, index) => [
+      {
+        userId: user.id,
+        bookId: books[(index * 2 + 5) % books.length].id,
+        createdAt: daysAgo(12 - (index % 8), 10),
+      },
+      {
+        userId: user.id,
+        bookId: books[(index * 3 + 9) % books.length].id,
+        createdAt: daysAgo(8 - (index % 6), 18),
+      },
+    ]),
+    skipDuplicates: true,
+  });
+
+  await prisma.favoriteItem.createMany({
+    data: users.slice(0, 10).flatMap((user, index) => [
+      {
+        userId: user.id,
+        bookId: books[(index * 4 + 1) % books.length].id,
+        createdAt: daysAgo(10 - (index % 5), 9),
+      },
+      {
+        userId: user.id,
+        bookId: books[(index * 4 + 2) % books.length].id,
+        createdAt: daysAgo(6 - (index % 4), 19),
+      },
+    ]),
+    skipDuplicates: true,
+  });
+
+  await prisma.stockAlertSubscription.createMany({
+    data: users.slice(0, 8).map((user, index) => ({
+      userId: user.id,
+      bookId: books[(index * 7 + 10) % books.length].id,
+      isActive: true,
+      notifiedAt: index % 3 === 0 ? daysAgo(index + 1, 14) : null,
+      createdAt: daysAgo(7 - (index % 4), 12),
+      updatedAt: daysAgo(index % 3, 12),
+    })),
+    skipDuplicates: true,
+  });
+
+  console.log('📖 Creating reading history, eBook access, and annotations...');
+  const digitalBooks = await Promise.all([
+    prisma.book.update({
+      where: { id: books[3].id },
+      data: {
+        isDigital: true,
+        ebookFormat: 'EPUB',
+        ebookFilePath: 'dune.epub',
+        ebookPrice: 9.99,
+        totalPages: 544,
+      },
+    }),
+    prisma.book.update({
+      where: { id: books[5].id },
+      data: {
+        isDigital: true,
+        ebookFormat: 'PDF',
+        ebookFilePath: 'clean-code.pdf',
+        ebookPrice: 24.99,
+        totalPages: 464,
+      },
+    }),
+    prisma.book.update({
+      where: { id: books[12].id },
+      data: {
+        isDigital: true,
+        ebookFormat: 'EPUB',
+        ebookFilePath: 'pragmatic-programmer.epub',
+        ebookPrice: 19.99,
+        totalPages: 352,
+      },
+    }),
+    prisma.book.update({
+      where: { id: books[33].id },
+      data: {
+        isDigital: true,
+        ebookFormat: 'EPUB',
+        ebookFilePath: 'project-hail-mary.epub',
+        ebookPrice: 11.99,
+        totalPages: 496,
+      },
+    }),
+  ]);
+
+  const readingItems = await Promise.all(
+    users.slice(0, 10).map((user, index) => {
+      const book = books[(index * 3 + 2) % books.length];
+      const statusOptions: ReadingStatus[] = [
+        ReadingStatus.TO_READ,
+        ReadingStatus.READING,
+        ReadingStatus.FINISHED,
+      ];
+      const status = statusOptions[index % statusOptions.length];
+      return prisma.readingItem.create({
+        data: {
+          userId: user.id,
+          bookId: book.id,
+          status,
+          currentPage: status === 'TO_READ' ? 0 : 30 + (index * 15),
+          totalPages: 220 + (index * 20),
+          dailyGoalPages: 10 + (index % 4) * 5,
+          startedAt: status === 'TO_READ' ? null : daysAgo(20 - index, 7),
+          finishedAt: status === 'FINISHED' ? daysAgo(index, 20) : null,
+          createdAt: daysAgo(25 - index, 8),
+          updatedAt: daysAgo(index % 5, 18),
+        },
+      });
+    }),
+  );
+
+  await prisma.readingSession.createMany({
+    data: readingItems.flatMap((item, index) => [
+      {
+        userId: item.userId,
+        bookId: item.bookId,
+        readingItemId: item.id,
+        pagesRead: 12 + (index % 8),
+        sessionDate: daysAgo(6 - (index % 5), 7),
+        notes: 'Morning reading session before work.',
+        createdAt: daysAgo(6 - (index % 5), 7),
+        updatedAt: daysAgo(6 - (index % 5), 7),
+      },
+      {
+        userId: item.userId,
+        bookId: item.bookId,
+        readingItemId: item.id,
+        pagesRead: 18 + (index % 10),
+        sessionDate: daysAgo(2 - (index % 2), 21),
+        notes: index % 2 === 0 ? 'Annotated a few passages.' : 'Fast session on the commute.',
+        createdAt: daysAgo(2 - (index % 2), 21),
+        updatedAt: daysAgo(2 - (index % 2), 21),
+      },
+    ]),
+  });
+
+  const userBookAccesses = await Promise.all(
+    users.slice(0, 6).map((user, index) =>
+      prisma.userBookAccess.create({
+        data: {
+          userId: user.id,
+          bookId: digitalBooks[index % digitalBooks.length].id,
+          sourceOrderId: createdOrders[index]?.id ?? null,
+          grantedAt: daysAgo(12 - index, 13),
+        },
+      }),
+    ),
+  );
+
+  await prisma.ebookProgress.createMany({
+    data: userBookAccesses.map((access, index) => ({
+      userId: access.userId,
+      bookId: access.bookId,
+      page: 25 + index * 18,
+      locationCfi: `epubcfi(/6/${index + 2}!/4/${index + 10})`,
+      percent: Number((12 + index * 11.5).toFixed(2)),
+      createdAt: daysAgo(10 - index, 11),
+      updatedAt: daysAgo(index % 3, 17),
+    })),
+  });
+
+  await prisma.ebookBookmark.createMany({
+    data: userBookAccesses.flatMap((access, index) => [
+      {
+        userId: access.userId,
+        bookId: access.bookId,
+        page: 18 + index * 7,
+        locationCfi: `epubcfi(/6/${index + 3}!/4/${index + 12})`,
+        label: 'Key turning point',
+        createdAt: daysAgo(5 - (index % 3), 20),
+        updatedAt: daysAgo(5 - (index % 3), 20),
+      },
+      {
+        userId: access.userId,
+        bookId: access.bookId,
+        page: 33 + index * 5,
+        locationCfi: `epubcfi(/6/${index + 4}!/4/${index + 14})`,
+        label: 'Return here for quote',
+        createdAt: daysAgo(2 - (index % 2), 8),
+        updatedAt: daysAgo(2 - (index % 2), 8),
+      },
+    ]),
+  });
+
+  await prisma.ebookNote.createMany({
+    data: userBookAccesses.map((access, index) => ({
+      userId: access.userId,
+      bookId: access.bookId,
+      page: 21 + index * 6,
+      locationCfi: `epubcfi(/6/${index + 5}!/4/${index + 16})`,
+      content: `Seed note ${index + 1}: capturing a useful takeaway for reading-state UI tests.`,
+      createdAt: daysAgo(4 - (index % 3), 9),
+      updatedAt: daysAgo(1, 19),
+    })),
+  });
+
+  await prisma.ebookHighlight.createMany({
+    data: userBookAccesses.map((access, index) => ({
+      userId: access.userId,
+      bookId: access.bookId,
+      page: 17 + index * 9,
+      startCfi: `epubcfi(/6/${index + 6}!/4/${index + 18})`,
+      endCfi: `epubcfi(/6/${index + 6}!/4/${index + 19})`,
+      textSnippet: `Highlighted passage ${index + 1} for annotation and export testing.`,
+      color: ['yellow', 'blue', 'pink', 'green'][index % 4],
+      createdAt: daysAgo(3 - (index % 2), 15),
+      updatedAt: daysAgo(index % 2, 16),
+    })),
+  });
+
+  console.log('📝 Creating blog posts, poems, follows, reactions, and blog notifications...');
+  const blogAuthors = users.slice(0, 6);
+  const followPairs = [
+    [users[6], blogAuthors[0]],
+    [users[7], blogAuthors[0]],
+    [users[8], blogAuthors[1]],
+    [users[9], blogAuthors[1]],
+    [users[10], blogAuthors[2]],
+    [users[11], blogAuthors[3]],
+    [users[12], blogAuthors[4]],
+    [users[13], blogAuthors[5]],
+    [users[14], blogAuthors[2]],
+  ];
+
+  await prisma.authorFollow.createMany({
+    data: followPairs.map(([follower, author], index) => ({
+      followerId: follower.id,
+      authorId: author.id,
+      createdAt: daysAgo(15 - index, 10),
+    })),
+    skipDuplicates: true,
+  });
+
+  const blogSeeds = [
+    {
+      authorId: blogAuthors[0].id,
+      title: 'Shelving a City by Memory',
+      subtitle: 'How a bookstore map becomes a personal atlas',
+      content:
+        '<p>I still judge a neighborhood by the first independent bookstore I find there.</p><p>Some shelves feel like weather reports. Others feel like invitations.</p>',
+      status: 'PUBLISHED' as const,
+      tags: ['essay', 'bookstores', 'city-life'],
+      bookRefs: [books[0].id, books[11].id],
+      readingTime: 4,
+      coverImage: books[0].coverImage,
+      createdAt: daysAgo(11, 9),
+      viewsCount: 18,
+      likesCount: 4,
+      commentsCount: 2,
+    },
+    {
+      authorId: blogAuthors[1].id,
+      title: 'Inventory Poem for a Closing Shift',
+      subtitle: 'A short poem for boxes, dust, and fluorescent light',
+      content:
+        '<p>Count the spines, then count the silence.</p><p>Every carton opens like a weather front.</p><p>The register sleeps. The poems do not.</p>',
+      status: 'PUBLISHED' as const,
+      tags: ['poem', 'closing-shift', 'poetry'],
+      bookRefs: [books[39].id],
+      readingTime: 2,
+      coverImage: books[39].coverImage,
+      createdAt: daysAgo(9, 20),
+      viewsCount: 27,
+      likesCount: 6,
+      commentsCount: 3,
+    },
+    {
+      authorId: blogAuthors[2].id,
+      title: 'Three Ways Readers Signal Demand Before They Buy',
+      subtitle: 'Wishlist patterns, holds, and quiet intent',
+      content:
+        '<p>The cart is loud, but the wishlist is honest.</p><p>Readers often tell you what to stock weeks before they check out.</p>',
+      status: 'PUBLISHED' as const,
+      tags: ['ops', 'recommendations', 'retail'],
+      bookRefs: [books[24].id, books[32].id],
+      readingTime: 5,
+      coverImage: books[24].coverImage,
+      createdAt: daysAgo(7, 14),
+      viewsCount: 21,
+      likesCount: 5,
+      commentsCount: 1,
+    },
+    {
+      authorId: blogAuthors[3].id,
+      title: 'Draft Notes on Summer Reading Tables',
+      subtitle: 'Workshopping a front-of-store feature',
+      content:
+        '<p>This draft collects themes, pairings, and display copy for a summer campaign.</p>',
+      status: 'DRAFT' as const,
+      tags: ['draft', 'campaign'],
+      bookRefs: [books[16].id],
+      readingTime: 3,
+      coverImage: books[16].coverImage,
+      createdAt: daysAgo(3, 13),
+      viewsCount: 0,
+      likesCount: 0,
+      commentsCount: 0,
+    },
+    {
+      authorId: blogAuthors[4].id,
+      title: 'Poem for a Book Arriving Damaged but Still Loved',
+      subtitle: 'A short repair prayer',
+      content:
+        '<p>Bent corner, bruised jacket, still the sentence lifts.</p><p>Some books survive transit exactly the way readers do.</p>',
+      status: 'PENDING_REVIEW' as const,
+      tags: ['poem', 'repair', 'dispatch'],
+      bookRefs: [books[8].id],
+      readingTime: 1,
+      coverImage: books[8].coverImage,
+      createdAt: daysAgo(2, 18),
+      scheduledAt: daysAgo(-2, 9),
+      viewsCount: 0,
+      likesCount: 0,
+      commentsCount: 0,
+    },
+    {
+      authorId: blogAuthors[5].id,
+      title: 'Rejected Ad Copy Disguised as Criticism',
+      subtitle: 'Moderation case for testing workflow',
+      content:
+        '<p>This piece intentionally overreaches into promotion so moderation can reject it in seeded data.</p>',
+      status: 'REJECTED' as const,
+      moderationReason: 'Too promotional and not aligned with editorial guidelines.',
+      reviewedByUserId: adminUser.id,
+      reviewedAt: daysAgo(1, 12),
+      tags: ['moderation', 'editorial'],
+      bookRefs: [books[22].id],
+      readingTime: 2,
+      coverImage: books[22].coverImage,
+      createdAt: daysAgo(2, 10),
+      viewsCount: 0,
+      likesCount: 0,
+      commentsCount: 0,
+    },
+  ];
+
+  const uniqueBlogTagNames = Array.from(new Set(blogSeeds.flatMap((seed) => seed.tags)));
+  await prisma.blogTag.createMany({
+    data: uniqueBlogTagNames.map((name) => ({ name })),
+    skipDuplicates: true,
+  });
+  const blogTags = await prisma.blogTag.findMany({
+    where: { name: { in: uniqueBlogTagNames } },
+    select: { id: true, name: true },
+  });
+  const blogTagIdByName = new Map(blogTags.map((tag) => [tag.name, tag.id]));
+
+  const createdBlogs = await Promise.all(
+    blogSeeds.map((seed) =>
+      prisma.authorBlog.create({
+        data: {
+          authorId: seed.authorId,
+          title: seed.title,
+          subtitle: seed.subtitle,
+          content: seed.content,
+          coverImage: seed.coverImage,
+          readingTime: seed.readingTime,
+          status: seed.status,
+          moderationReason: seed.moderationReason ?? null,
+          reviewedByUserId: seed.reviewedByUserId ?? null,
+          reviewedAt: seed.reviewedAt ?? null,
+          scheduledAt: seed.status === 'PUBLISHED' ? null : (seed.scheduledAt ?? null),
+          viewsCount: seed.viewsCount,
+          likesCount: seed.likesCount,
+          commentsCount: seed.commentsCount,
+          createdAt: seed.createdAt,
+          updatedAt: daysAgo(0, 12),
+          tags: {
+            create: seed.tags.map((name) => ({
+              tag: {
+                connect: { id: blogTagIdByName.get(name)! },
+              },
+            })),
+          },
+          bookReferences: {
+            create: seed.bookRefs.map((bookId) => ({
+              book: { connect: { id: bookId } },
+            })),
+          },
+        },
+      }),
+    ),
+  );
+
+  const publishedBlogs = createdBlogs.filter((blog) => blog.status === 'PUBLISHED');
+  const blogInteractionUsers = users.slice(6, 16);
+
+  await prisma.blogPostView.createMany({
+    data: publishedBlogs.flatMap((blog, index) =>
+      blogInteractionUsers.slice(index, index + 3).map((user, offset) => ({
+        postId: blog.id,
+        userId: user.id,
+        createdAt: daysAgo(5 - offset, 10 + offset),
+      })),
+    ),
+    skipDuplicates: true,
+  });
+
+  await prisma.blogPostAnonymousView.createMany({
+    data: publishedBlogs.flatMap((blog, index) =>
+      Array.from({ length: 3 }, (_, offset) => ({
+        postId: blog.id,
+        visitorId: `anon-${index + 1}-${offset + 1}`,
+        createdAt: daysAgo(4 - offset, 9 + offset),
+      })),
+    ),
+    skipDuplicates: true,
+  });
+
+  await prisma.blogLike.createMany({
+    data: [
+      { postId: publishedBlogs[0].id, userId: users[6].id },
+      { postId: publishedBlogs[0].id, userId: users[7].id },
+      { postId: publishedBlogs[0].id, userId: users[8].id },
+      { postId: publishedBlogs[0].id, userId: users[9].id },
+      { postId: publishedBlogs[1].id, userId: users[6].id },
+      { postId: publishedBlogs[1].id, userId: users[10].id },
+      { postId: publishedBlogs[1].id, userId: users[11].id },
+      { postId: publishedBlogs[1].id, userId: users[12].id },
+      { postId: publishedBlogs[1].id, userId: users[13].id },
+      { postId: publishedBlogs[1].id, userId: users[14].id },
+      { postId: publishedBlogs[2].id, userId: users[7].id },
+      { postId: publishedBlogs[2].id, userId: users[15].id },
+      { postId: publishedBlogs[2].id, userId: users[16].id },
+      { postId: publishedBlogs[2].id, userId: users[17].id },
+      { postId: publishedBlogs[2].id, userId: users[18].id },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.blogComment.createMany({
+    data: [
+      {
+        blogId: publishedBlogs[0].id,
+        userId: users[6].id,
+        content: 'The line about shelves feeling like weather reports is excellent.',
+        createdAt: daysAgo(5, 18),
+      },
+      {
+        blogId: publishedBlogs[0].id,
+        userId: users[7].id,
+        content: 'This makes me want a city-by-city bookstore map feature.',
+        createdAt: daysAgo(4, 11),
+      },
+      {
+        blogId: publishedBlogs[1].id,
+        userId: users[8].id,
+        content: 'Short, strange, and exactly right for the page.',
+        createdAt: daysAgo(3, 20),
+      },
+      {
+        blogId: publishedBlogs[1].id,
+        userId: users[9].id,
+        content: 'Using this one to test poem cards in the frontend.',
+        createdAt: daysAgo(2, 10),
+      },
+      {
+        blogId: publishedBlogs[1].id,
+        userId: users[10].id,
+        content: 'Good moderation seed too because it is clearly a poem, not a review.',
+        createdAt: daysAgo(1, 13),
+      },
+      {
+        blogId: publishedBlogs[2].id,
+        userId: users[11].id,
+        content: 'This should pair well with reorder suggestions and lead demand reporting.',
+        createdAt: daysAgo(1, 18),
+      },
+    ],
+  });
+
+  await prisma.blogNotification.createMany({
+    data: [
+      {
+        userId: publishedBlogs[0].authorId,
+        blogId: publishedBlogs[0].id,
+        authorId: publishedBlogs[0].authorId,
+        message: `${users[6].name} commented on "${publishedBlogs[0].title}".`,
+        createdAt: daysAgo(4, 11),
+      },
+      {
+        userId: publishedBlogs[1].authorId,
+        blogId: publishedBlogs[1].id,
+        authorId: publishedBlogs[1].authorId,
+        message: `${users[9].name} started following your writing.`,
+        createdAt: daysAgo(2, 15),
+      },
+      {
+        userId: publishedBlogs[2].authorId,
+        blogId: publishedBlogs[2].id,
+        authorId: publishedBlogs[2].authorId,
+        message: `${users[11].name} bookmarked your operations post for later.`,
+        createdAt: daysAgo(1, 19),
+      },
+    ],
+  });
+
+  await prisma.notification.createMany({
+    data: [
+      {
+        userId: publishedBlogs[0].authorId,
+        type: 'blog_comment',
+        title: 'New comment on your post',
+        message: `${users[7].name} commented on "${publishedBlogs[0].title}".`,
+        link: `/blogs/${publishedBlogs[0].id}`,
+        isRead: false,
+      },
+      {
+        userId: publishedBlogs[1].authorId,
+        type: 'blog_like',
+        title: 'Your poem got new likes',
+        message: `${users[10].name} and others liked "${publishedBlogs[1].title}".`,
+        link: `/blogs/${publishedBlogs[1].id}`,
+        isRead: false,
+      },
+      {
+        userId: publishedBlogs[2].authorId,
+        type: 'blog_follow',
+        title: 'You have a new follower',
+        message: `${users[14].name} started following your writing.`,
+        link: `/writers/${publishedBlogs[2].authorId}`,
+        isRead: true,
+      },
+    ],
+  });
+
+  console.log('🎁 Creating loyalty rewards, sticker history, and redemptions...');
+  const loyaltyRewards = await Promise.all([
+    prisma.loyaltyReward.create({
+      data: {
+        name: '5% Reader Coupon',
+        description: 'A lightweight discount for repeat customers.',
+        stickerCost: 30,
+        rewardType: 'PERCENT_COUPON',
+        discountValue: 5,
+        maxDiscountAmount: 15,
+        isActive: true,
+      },
+    }),
+    prisma.loyaltyReward.create({
+      data: {
+        name: '$8 Weekend Coupon',
+        description: 'Fixed-value reward for medium sticker balances.',
+        stickerCost: 55,
+        rewardType: 'FIXED_COUPON',
+        discountValue: 8,
+        isActive: true,
+      },
+    }),
+    prisma.loyaltyReward.create({
+      data: {
+        name: 'Free eBook: Project Hail Mary',
+        description: 'Redeem for a seeded digital title.',
+        stickerCost: 80,
+        rewardType: 'FREE_EBOOK',
+        rewardBookId: digitalBooks[3].id,
+        isActive: true,
+      },
+    }),
+  ]);
+
+  const stickerRecipients = users.slice(0, 6);
+  for (let index = 0; index < stickerRecipients.length; index += 1) {
+    const user = stickerRecipients[index];
+    const orderEarned = 16 + index * 4;
+    const adminGrant = index % 2 === 0 ? 10 : 0;
+    const balance = orderEarned + adminGrant - (index === 0 ? 30 : index === 2 ? 80 : 0);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { stickerBalance: balance },
+    });
+
+    await prisma.stickerLedger.create({
+      data: {
+        userId: user.id,
+        actorUserId: adminUser.id,
+        orderId: createdOrders[index]?.id ?? null,
+        type: 'ORDER_EARN',
+        delta: orderEarned,
+        note: 'Stickers earned from seeded completed orders.',
+        createdAt: daysAgo(8 - index, 13),
+      },
+    });
+
+    if (adminGrant > 0) {
+      await prisma.stickerLedger.create({
+        data: {
+          userId: user.id,
+          actorUserId: adminUser.id,
+          type: 'ADMIN_GRANT',
+          delta: adminGrant,
+          note: 'Manual goodwill grant for testing admin tools.',
+          createdAt: daysAgo(3 - (index % 2), 16),
+        },
+      });
+    }
+  }
+
+  const generatedPromo = await prisma.promotionCode.create({
+    data: {
+      code: 'LOYALTY-5OFF-SEED',
+      assignedUserId: stickerRecipients[0].id,
+      name: 'Seeded loyalty coupon',
+      description: 'Generated from redemption seed flow.',
+      discountType: 'PERCENT',
+      discountValue: 5,
+      minSubtotal: 20,
+      maxDiscountAmount: 15,
+      isActive: true,
+    },
+  });
+
+  const loyaltyRedemptions = await Promise.all([
+    prisma.loyaltyRedemption.create({
+      data: {
+        userId: stickerRecipients[0].id,
+        rewardId: loyaltyRewards[0].id,
+        stickerCost: loyaltyRewards[0].stickerCost,
+        generatedPromoId: generatedPromo.id,
+        createdAt: daysAgo(1, 14),
+      },
+    }),
+    prisma.loyaltyRedemption.create({
+      data: {
+        userId: stickerRecipients[2].id,
+        rewardId: loyaltyRewards[2].id,
+        stickerCost: loyaltyRewards[2].stickerCost,
+        grantedBookId: digitalBooks[3].id,
+        createdAt: daysAgo(0, 10),
+      },
+    }),
+  ]);
+
+  await prisma.stickerLedger.createMany({
+    data: [
+      {
+        userId: stickerRecipients[0].id,
+        actorUserId: adminUser.id,
+        redemptionId: loyaltyRedemptions[0].id,
+        type: 'REWARD_REDEEM',
+        delta: -loyaltyRewards[0].stickerCost,
+        note: 'Redeemed for percentage coupon.',
+        createdAt: daysAgo(1, 14),
+      },
+      {
+        userId: stickerRecipients[2].id,
+        actorUserId: adminUser.id,
+        redemptionId: loyaltyRedemptions[1].id,
+        type: 'REWARD_REDEEM',
+        delta: -loyaltyRewards[2].stickerCost,
+        note: 'Redeemed for free eBook reward.',
+        createdAt: daysAgo(0, 10),
+      },
+    ],
+  });
+
+  console.log('↩️ Creating return requests...');
+  const completedOrderIds = createdOrders
+    .filter((order) => order.status === 'COMPLETED')
+    .map((order) => order.id);
+  const completedOrderItems = await prisma.orderItem.findMany({
+    where: { orderId: { in: completedOrderIds } },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const returnRequests = await Promise.all(
+    completedOrderItems.slice(0, 4).map((item, index) =>
+      prisma.returnRequest.create({
+        data: {
+          orderId: item.orderId,
+          userId: createdOrders.find((order) => order.id === item.orderId)!.userId,
+          bookId: item.bookId,
+          status: ['REQUESTED', 'APPROVED', 'REFUNDED', 'CLOSED'][index] as
+            | 'REQUESTED'
+            | 'APPROVED'
+            | 'REFUNDED'
+            | 'CLOSED',
+          reason: [
+            'Received the wrong edition',
+            'Cover damaged during shipping',
+            'Duplicate gift purchase',
+            'Pages were misprinted',
+          ][index],
+          details: 'Seeded return for order management and admin review testing.',
+          requestedQty: 1,
+          resolutionNote:
+            index === 0 ? null : 'Reviewed and updated by the finance/support workflow.',
+          refundAmount: Number(item.price),
+          reviewedByUserId: index === 0 ? null : staffSeedUsers[2].id,
+          reviewedAt: index === 0 ? null : daysAgo(1 - (index % 2), 16),
+          createdAt: daysAgo(2 + index, 12),
+          updatedAt: daysAgo(index % 2, 18),
+        },
+      }),
+    ),
+  );
+
+  console.log('📥 Creating book leads and partner consignment deals...');
+  const bookLeads = await Promise.all([
+    prisma.bookLead.create({
+      data: {
+        title: 'Tomorrow, and Tomorrow, and Tomorrow',
+        author: 'Gabrielle Zevin',
+        note: 'High demand from wishlist and walk-in requests.',
+        source: 'USER_REQUEST',
+        status: 'NEW',
+        priority: 4,
+        requestedByUserId: users[4].id,
+      },
+    }),
+    prisma.bookLead.create({
+      data: {
+        title: 'Small Things Like These',
+        author: 'Claire Keegan',
+        note: 'Suggested for a winter front-table display.',
+        source: 'STAFF_IDEA',
+        status: 'SOURCING',
+        priority: 3,
+        requestedByUserId: staffSeedUsers[1].id,
+        assignedToUserId: staffSeedUsers[1].id,
+        procurementIsbn: '978-0-8021-5903-8',
+        procurementPrice: 10.5,
+        procurementCategories: ['Fiction', 'Literary'],
+        procurementGenres: ['Novella', 'Contemporary'],
+        procurementDescription: 'Quiet literary fiction with strong seasonal demand potential.',
+        procurementCoverImage: 'https://covers.openlibrary.org/b/isbn/9780802159038-L.jpg?default=false',
+        procurementStock: 16,
+        procurementWarehouseId: warehouses[0].id,
+        procurementQuantity: 12,
+        procurementEstimatedCost: 126,
+        procurementReviewNote: 'Awaiting final vendor quote.',
+      },
+    }),
+    prisma.bookLead.create({
+      data: {
+        title: 'Orbital',
+        author: 'Samantha Harvey',
+        note: 'Partner pitch for literary/science crossover readers.',
+        source: 'PARTNER_PITCH',
+        status: 'APPROVED_TO_BUY',
+        priority: 5,
+        requestedByUserId: users[8].id,
+        assignedToUserId: staffSeedUsers[1].id,
+        procurementIsbn: '978-0-8021-6402-5',
+        procurementPrice: 13.25,
+        procurementCategories: ['Fiction', 'Science'],
+        procurementGenres: ['Literary', 'Space'],
+        procurementDescription: 'Strong fit for prize-fiction and science-curious readers.',
+        procurementCoverImage: 'https://covers.openlibrary.org/b/isbn/9780802164025-L.jpg?default=false',
+        procurementStock: 20,
+        procurementWarehouseId: warehouses[1].id,
+        procurementQuantity: 18,
+        procurementEstimatedCost: 238.5,
+        procurementReviewNote: 'Approved to enter partner pipeline.',
+      },
+    }),
+    prisma.bookLead.create({
+      data: {
+        title: 'Martyr!',
+        author: 'Kaveh Akbar',
+        note: 'Converted demand lead for literary fiction readers.',
+        source: 'USER_REQUEST',
+        status: 'CONVERTED_TO_BOOK',
+        priority: 4,
+        requestedByUserId: users[9].id,
+        assignedToUserId: staffSeedUsers[1].id,
+        convertedBookId: books[47].id,
+        procurementIsbn: '978-0-593-53472-4',
+        procurementPrice: 12.75,
+        procurementCategories: ['Fiction', 'Literary'],
+        procurementGenres: ['Contemporary'],
+        procurementDescription: 'Converted into catalog for testing lead conversion history.',
+        procurementCoverImage: books[47].coverImage,
+        procurementStock: 14,
+        procurementWarehouseId: warehouses[2].id,
+        procurementQuantity: 10,
+        procurementEstimatedCost: 127.5,
+        procurementReviewNote: 'Converted to active catalog book.',
+      },
+    }),
+    prisma.bookLead.create({
+      data: {
+        title: 'Experimental Shelf Zine Vol. 1',
+        author: 'Various Authors',
+        note: 'Rejected due to unclear distribution and rights.',
+        source: 'PARTNER_PITCH',
+        status: 'REJECTED',
+        priority: 2,
+        requestedByUserId: users[10].id,
+        assignedToUserId: staffSeedUsers[1].id,
+        procurementReviewNote: 'Insufficient metadata and no stable supply channel.',
+      },
+    }),
+  ]);
+
+  const partnerDeals = await Promise.all([
+    prisma.partnerConsignmentDeal.create({
+      data: {
+        partnerName: 'Mara Ellison',
+        partnerCompany: 'North Dock Press',
+        partnerEmail: 'rights@northdockpress.example',
+        leadId: bookLeads[2].id,
+        bookId: null,
+        status: 'ACTIVE',
+        revenueSharePct: 22.5,
+        effectiveFrom: daysAgo(30, 9),
+        effectiveTo: null,
+        termsNote: 'Quarterly settlement with co-marketing support.',
+        createdByUserId: adminUser.id,
+      },
+    }),
+    prisma.partnerConsignmentDeal.create({
+      data: {
+        partnerName: 'Iris Vale',
+        partnerCompany: 'Lantern Poems Studio',
+        partnerEmail: 'partnerships@lanternpoems.example',
+        bookId: books[39].id,
+        status: 'DRAFT',
+        revenueSharePct: 18,
+        effectiveFrom: daysAgo(12, 10),
+        effectiveTo: null,
+        termsNote: 'Draft deal linked to poetry merchandising tests.',
+        createdByUserId: adminUser.id,
+      },
+    }),
+  ]);
+
+  const partnerSettlements = await Promise.all([
+    prisma.partnerSettlement.create({
+      data: {
+        dealId: partnerDeals[0].id,
+        periodStart: new Date('2026-02-01T00:00:00.000Z'),
+        periodEnd: new Date('2026-02-28T23:59:59.000Z'),
+        grossSalesAmount: 1240,
+        partnerShareAmount: 279,
+        status: 'PAID',
+        paidAt: daysAgo(6, 15),
+        note: 'First seeded paid settlement.',
+      },
+    }),
+    prisma.partnerSettlement.create({
+      data: {
+        dealId: partnerDeals[0].id,
+        periodStart: new Date('2026-03-01T00:00:00.000Z'),
+        periodEnd: new Date('2026-03-31T23:59:59.000Z'),
+        grossSalesAmount: 860,
+        partnerShareAmount: 193.5,
+        status: 'PENDING',
+        note: 'Current cycle pending finance confirmation.',
+      },
+    }),
+  ]);
+
   console.log('✅ Database seeded successfully!');
   console.log(`📊 Created:`);
+  console.log(`   - 1 super admin user (superadmin@bookstore.com / superadmin123)`);
   console.log(`   - 1 admin user (admin@bookstore.com / admin123)`);
   console.log(`   - 23 regular users (password: user123)`);
   console.log(`   - 71 books (various genres and stock levels)`);
@@ -2300,6 +3421,15 @@ async function main() {
   console.log(`   - ${createdInquiries.length} inquiries`);
   console.log(`   - ${totalReviewsCreated} reviews`);
   console.log(`   - ${notificationSeedData.length} user notifications`);
+  console.log(`   - ${stores.length} stores with ${storeStockRows.length} store stock rows`);
+  console.log(`   - ${storeTransfers.length} store transfers`);
+  console.log(`   - ${savedAddresses.length} saved addresses`);
+  console.log(`   - ${readingItems.length} reading items and ${userBookAccesses.length} ebook access grants`);
+  console.log(`   - ${createdBlogs.length} blog posts/poems`);
+  console.log(`   - ${loyaltyRewards.length} loyalty rewards and ${loyaltyRedemptions.length} redemptions`);
+  console.log(`   - ${returnRequests.length} return requests`);
+  console.log(`   - ${bookLeads.length} book leads`);
+  console.log(`   - ${partnerDeals.length} partner deals and ${partnerSettlements.length} settlements`);
   console.log(`   - ${repeatedAuthors.length} authors with multiple books`);
   console.log(`\n📚 Book Categories:`);
   console.log(`   - Fiction & Classics`);
@@ -2308,6 +3438,7 @@ async function main() {
   console.log(`   - Mystery & Thriller`);
   console.log(`   - Self-Help & Business`);
   console.log(`\n🔑 Login credentials:`);
+  console.log(`   Super Admin: superadmin@bookstore.com / superadmin123`);
   console.log(`   Admin: admin@bookstore.com / admin123`);
   console.log(`   Users: john.doe@example.com / user123`);
   console.log(`          jane.smith@example.com / user123`);

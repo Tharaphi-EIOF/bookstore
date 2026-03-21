@@ -1,0 +1,8 @@
+ALTER TABLE "User"
+ADD COLUMN "location" TEXT,
+ADD COLUMN "website" TEXT,
+ADD COLUMN "timezone" TEXT NOT NULL DEFAULT 'UTC',
+ADD COLUMN "language" TEXT NOT NULL DEFAULT 'en',
+ADD COLUMN "emailUpdatesEnabled" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN "followerAlertsEnabled" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN "marketingEmailsEnabled" BOOLEAN NOT NULL DEFAULT false;

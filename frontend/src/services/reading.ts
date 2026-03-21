@@ -3,8 +3,10 @@ import { z } from 'zod'
 import { api } from '@/lib/api'
 import { bookSchema } from '@/lib/schemas'
 
+// Reading services model shelf tracking, session history, and ebook reader state.
 export const readingStatusSchema = z.enum(['TO_READ', 'READING', 'FINISHED'])
 
+// The reading API reuses book data, but some inventory-only fields are optional here.
 const bookLiteSchema = bookSchema
   .omit({ inStock: true, stockStatus: true })
   .extend({
@@ -144,6 +146,7 @@ export const useReadingItems = (params?: {
   enabled?: boolean
 }) => {
   return useQuery({
+    // Status and book filters each get their own cache bucket.
     queryKey: ['reading', params?.status ?? 'ALL', params?.bookId ?? 'ALL'],
     queryFn: async () => {
       const response = await api.get('/reading', {
@@ -198,6 +201,7 @@ export const useReadingSessions = (params?: {
 export const useTrackBook = () => {
   const queryClient = useQueryClient()
   return useMutation({
+    // Tracking creates or updates the shelf entry that powers dashboard and insights screens.
     mutationFn: async ({
       bookId,
       status,
@@ -234,6 +238,7 @@ export const useUpdateReadingStatus = () => {
       return readingItemSchema.parse(response.data)
     },
     onSuccess: () => {
+      // Session-related views also depend on status transitions, so refresh both namespaces.
       queryClient.invalidateQueries({ queryKey: ['reading'] })
       queryClient.invalidateQueries({ queryKey: ['reading-sessions'] })
     },
@@ -353,6 +358,20 @@ export const useUpdateReadingSession = () => {
   })
 }
 
+export const useDeleteReadingSession = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (sessionId: string) => {
+      const response = await api.delete(`/reading/sessions/${sessionId}`)
+      return readingSessionSchema.parse(response.data)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reading-sessions'] })
+      queryClient.invalidateQueries({ queryKey: ['reading'] })
+    },
+  })
+}
+
 export const useOpenEbook = (bookId: string, enabled = true) => {
   return useQuery({
     queryKey: ['ebook-open', bookId],
@@ -389,16 +408,19 @@ export const useUpdateEbookProgress = () => {
       page,
       locationCfi,
       percent,
+      sessionStartAt,
     }: {
       bookId: string
       page?: number
       locationCfi?: string
       percent?: number
+      sessionStartAt?: string
     }) => {
       const response = await api.patch(`/reading/ebook/${bookId}/progress`, {
         page,
         locationCfi,
         percent,
+        sessionStartAt,
       })
       return ebookProgressSchema.parse(response.data)
     },
@@ -461,6 +483,9 @@ export const useUpdateEbookProgress = () => {
           }
         },
       )
+      queryClient.invalidateQueries({ queryKey: ['reading'] })
+      queryClient.invalidateQueries({ queryKey: ['reading-sessions'] })
+      queryClient.invalidateQueries({ queryKey: ['reading-ebooks'] })
     },
   })
 }

@@ -49,7 +49,7 @@ const ColumnVisibilityMenu = <T extends Record<string, boolean>>({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full z-[150] mt-2 w-full max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+        <div className="absolute right-0 top-full z-[150] mt-2 min-w-full w-max max-w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-900">
           <div className="mb-3 flex items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Show Columns</p>
             <button

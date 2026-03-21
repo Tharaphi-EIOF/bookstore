@@ -3,11 +3,10 @@ import {
   IsEmail,
   IsEnum,
   IsIn,
-  IsOptional,
   IsNotEmpty,
+  IsOptional,
   IsString,
   MaxLength,
-  ValidateIf,
 } from 'class-validator';
 import { DeliveryType } from '@prisma/client';
 
@@ -28,58 +27,51 @@ export class CreateOrderDto {
   storeId?: string;
 
   @ApiProperty({ example: 'John Doe' })
+  @IsOptional()
   @IsString()
-  @ValidateIf((dto: CreateOrderDto) => dto.deliveryType !== 'STORE_PICKUP')
-  @IsNotEmpty()
   @MaxLength(120)
-  fullName!: string;
+  fullName?: string;
 
   @ApiProperty({ example: 'john@example.com' })
-  @ValidateIf((dto: CreateOrderDto) => dto.deliveryType !== 'STORE_PICKUP')
+  @IsOptional()
   @IsEmail()
-  email!: string;
+  email?: string;
 
   @ApiProperty({ example: '+1 (555) 123-4567' })
+  @IsOptional()
   @IsString()
-  @ValidateIf((dto: CreateOrderDto) => dto.deliveryType !== 'STORE_PICKUP')
-  @IsNotEmpty()
   @MaxLength(50)
-  phone!: string;
+  phone?: string;
 
   @ApiProperty({ example: '123 Main St, Apt 4B' })
+  @IsOptional()
   @IsString()
-  @ValidateIf((dto: CreateOrderDto) => dto.deliveryType !== 'STORE_PICKUP')
-  @IsNotEmpty()
   @MaxLength(220)
-  address!: string;
+  address?: string;
 
   @ApiProperty({ example: 'Seattle' })
+  @IsOptional()
   @IsString()
-  @ValidateIf((dto: CreateOrderDto) => dto.deliveryType !== 'STORE_PICKUP')
-  @IsNotEmpty()
   @MaxLength(120)
-  city!: string;
+  city?: string;
 
   @ApiProperty({ example: 'WA' })
+  @IsOptional()
   @IsString()
-  @ValidateIf((dto: CreateOrderDto) => dto.deliveryType !== 'STORE_PICKUP')
-  @IsNotEmpty()
   @MaxLength(120)
-  state!: string;
+  state?: string;
 
   @ApiProperty({ example: '98101' })
+  @IsOptional()
   @IsString()
-  @ValidateIf((dto: CreateOrderDto) => dto.deliveryType !== 'STORE_PICKUP')
-  @IsNotEmpty()
   @MaxLength(20)
-  zipCode!: string;
+  zipCode?: string;
 
   @ApiProperty({ example: 'United States' })
+  @IsOptional()
   @IsString()
-  @ValidateIf((dto: CreateOrderDto) => dto.deliveryType !== 'STORE_PICKUP')
-  @IsNotEmpty()
   @MaxLength(120)
-  country!: string;
+  country?: string;
 
   @ApiProperty({ example: 'KPAY', enum: ['KPAY', 'WAVEPAY', 'MPU', 'VISA'] })
   @IsString()

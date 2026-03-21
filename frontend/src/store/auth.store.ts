@@ -29,11 +29,18 @@ export interface User {
   shortBio?: string | null
   about?: string | null
   coverImage?: string | null
+  location?: string | null
+  website?: string | null
+  timezone?: string | null
+  language?: string | null
   showEmail?: boolean
   showFollowers?: boolean
   showFollowing?: boolean
   showFavorites?: boolean
   showLikedPosts?: boolean
+  emailUpdatesEnabled?: boolean
+  followerAlertsEnabled?: boolean
+  marketingEmailsEnabled?: boolean
   supportEnabled?: boolean
   supportUrl?: string | null
   supportQrImage?: string | null
@@ -45,7 +52,7 @@ interface AuthState {
   token: string | null
   isAuthenticated: boolean
   portalMode: 'buyer' | 'staff' | null
-  login: (user: User, token: string) => void
+  login: (user: User, token?: string | null) => void
   logout: () => void
   updateUser: (user: User) => void
   setPortalMode: (mode: 'buyer' | 'staff' | null) => void
@@ -54,11 +61,12 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
+      // Store state supports both customer sessions and staff portal switching.
       user: null,
       token: null,
       isAuthenticated: false,
       portalMode: null,
-      login: (user, token) =>
+      login: (user, token = null) =>
         set({
           user,
           token,
@@ -85,6 +93,16 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => localStorage),
+      onRehydrateStorage: () => (state) => {
+        // Defensive reset avoids partially restored auth state after schema changes.
+        if (!state) return
+        if (!state.user) {
+          state.user = null
+          state.token = null
+          state.isAuthenticated = false
+          state.portalMode = null
+        }
+      },
     }
   )
 )

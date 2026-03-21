@@ -136,6 +136,19 @@ export class ReadingController {
     return this.readingService.updateSession(req.user.sub, sessionId, dto);
   }
 
+  @Delete('sessions/:sessionId')
+  @ApiOperation({ summary: 'Delete an existing reading session' })
+  @ApiResponse({
+    status: 200,
+    description: 'Reading session deleted successfully',
+  })
+  removeSession(
+    @Request() req: AuthenticatedRequest,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.readingService.removeSession(req.user.sub, sessionId);
+  }
+
   @Patch(':bookId/status')
   @ApiOperation({ summary: 'Update reading status for a tracked book' })
   @ApiResponse({

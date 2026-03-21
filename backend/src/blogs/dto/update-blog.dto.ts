@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  IsDateString,
   IsArray,
   IsIn,
   IsInt,
@@ -37,10 +38,18 @@ export class UpdateBlogDto {
   @MaxLength(1000)
   coverImage?: string;
 
-  @ApiPropertyOptional({ enum: ['DRAFT', 'PUBLISHED'] })
+  @ApiPropertyOptional({ enum: ['DRAFT', 'PENDING_REVIEW', 'REJECTED', 'PUBLISHED'] })
   @IsOptional()
-  @IsIn(['DRAFT', 'PUBLISHED'])
-  status?: 'DRAFT' | 'PUBLISHED';
+  @IsIn(['DRAFT', 'PENDING_REVIEW', 'REJECTED', 'PUBLISHED'])
+  status?: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED';
+
+  @ApiPropertyOptional({
+    description: 'Scheduled publish date/time (kept as draft until manual publish)',
+    example: '2026-03-15T09:30:00.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  scheduledAt?: string;
 
   @ApiPropertyOptional({ type: [String], example: ['frontend', 'ux'] })
   @IsOptional()

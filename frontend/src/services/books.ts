@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { 
-  Book, 
-  BooksResponse, 
+import {
+  Book,
+  BooksResponse,
   CreateBookData, 
   SearchBooksData,
   bookSchema,
@@ -11,8 +11,17 @@ import {
 } from '@/lib/schemas'
 import { z } from 'zod'
 
+// These hooks are the frontend contract for catalog/admin book operations.
+const ebookPageEstimateSchema = z.object({
+  ebookFilePath: z.string(),
+  ebookFormat: z.enum(['EPUB', 'PDF']),
+  totalPages: z.number().int().min(1),
+  method: z.enum(['exact', 'estimated']),
+})
+
 export const useBooks = (params: SearchBooksData = {}, options?: { enabled?: boolean }) => {
   return useQuery({
+    // Query keys stay parameterized so list filters cache independently.
     queryKey: ['books',params],
     queryFn: async (): Promise<BooksResponse> => {
       const response = await api.get('/books', { params })
@@ -45,6 +54,7 @@ export const useCreateBook = () => {
       const response = await api.post('/books', validatedData)
       return bookSchema.parse(response.data)
     },
+    // Invalidate broad list caches because the new book can affect multiple filtered views.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['books'] })
     },
@@ -163,5 +173,17 @@ export const useRecommendedBooks = (limit = 6, enabled = true) => {
     },
     enabled,
     staleTime: 1000 * 60 * 3,
+  })
+}
+
+export const useEstimateEbookPages = () => {
+  return useMutation({
+    // This endpoint is utility-like: it estimates reader pagination before persistence.
+    mutationFn: async (data: { ebookFilePath: string; ebookFormat?: 'EPUB' | 'PDF' }) => {
+      const response = await api.get('/books/ebook/estimate-pages', {
+        params: data,
+      })
+      return ebookPageEstimateSchema.parse(response.data)
+    },
   })
 }

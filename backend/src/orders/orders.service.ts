@@ -13,12 +13,20 @@ import {
   Prisma,
   PromotionCode,
   ReadingStatus,
+  ReturnRequestStatus,
   StaffTaskPriority,
   StaffTaskStatus,
 } from '@prisma/client';
 import { assertUserPermission } from '../auth/permission-resolution';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { CreateSavedAddressDto } from './dto/create-saved-address.dto';
+import { UpdateSavedAddressDto } from './dto/update-saved-address.dto';
+import { CreateReturnRequestDto } from './dto/create-return-request.dto';
+import { ReviewReturnRequestDto } from './dto/review-return-request.dto';
 import { StaffService } from '../staff/staff.service';
+import { PricingSettingsService } from '../pricing-settings/pricing-settings.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { allocateInventoryLots } from '../inventory/inventory-lot.helpers';
 
 type PromoPreview = {
   valid: boolean;
@@ -29,6 +37,9 @@ type PromoPreview = {
   message: string;
   subtotal: number;
   discountAmount: number;
+  taxRate: number;
+  taxAmount: number;
+  totalBeforeTax: number;
   total: number;
 };
 
@@ -81,7 +92,45 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly cartService: CartService,
     private readonly staffService: StaffService,
+    private readonly pricingSettingsService: PricingSettingsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
+
+  private async upsertDefaultAddressState(userId: string, addressId: string) {
+    await this.prisma.savedAddress.updateMany({
+      where: {
+        userId,
+        id: { not: addressId },
+      },
+      data: { isDefault: false },
+    });
+  }
+
+  private computeCheckoutTotals(
+    subtotal: number,
+    discountAmount: number,
+    taxRate: number,
+  ) {
+    const safeSubtotal = Number(subtotal.toFixed(2));
+    const safeDiscount = Number(Math.max(0, discountAmount).toFixed(2));
+    const totalBeforeTax = Number(
+      Math.max(0, safeSubtotal - safeDiscount).toFixed(2),
+    );
+    const taxAmount = this.pricingSettingsService.computeTaxAmount(
+      taxRate,
+      totalBeforeTax,
+    );
+    const total = Number((totalBeforeTax + taxAmount).toFixed(2));
+
+    return {
+      subtotal: safeSubtotal,
+      discountAmount: safeDiscount,
+      taxRate,
+      taxAmount,
+      totalBeforeTax,
+      total,
+    };
+  }
 
   private async grantDigitalAccessForOrder(
     orderId: string,
@@ -186,8 +235,10 @@ export class OrdersService {
   }
 
   private async evaluatePromo(
+    userId: string,
     rawCode: string,
     subtotal: number,
+    taxRate: number,
   ): Promise<PromoPreview> {
     const normalizedCode = rawCode.trim().toUpperCase();
     const rule = await this.prisma.promotionCode.findUnique({
@@ -195,43 +246,51 @@ export class OrdersService {
     });
 
     if (!rule) {
+      const totals = this.computeCheckoutTotals(subtotal, 0, taxRate);
       return {
         valid: false,
         code: normalizedCode,
         message: 'Promo code not found.',
-        subtotal,
-        discountAmount: 0,
-        total: subtotal,
+        ...totals,
+      };
+    }
+
+    if (rule.assignedUserId && rule.assignedUserId !== userId) {
+      const totals = this.computeCheckoutTotals(subtotal, 0, taxRate);
+      return {
+        valid: false,
+        code: normalizedCode,
+        label: rule.name,
+        message: 'This promo code is assigned to another user.',
+        ...totals,
       };
     }
 
     if (!this.isPromoActive(rule)) {
+      const totals = this.computeCheckoutTotals(subtotal, 0, taxRate);
       return {
         valid: false,
         code: normalizedCode,
         label: rule.name,
         message: 'Promo code is not active right now.',
-        subtotal,
-        discountAmount: 0,
-        total: subtotal,
+        ...totals,
       };
     }
 
     const minSubtotal = Number(rule.minSubtotal);
     if (minSubtotal > 0 && subtotal < minSubtotal) {
+      const totals = this.computeCheckoutTotals(subtotal, 0, taxRate);
       return {
         valid: false,
         code: normalizedCode,
         label: rule.name,
         message: `Minimum subtotal for this promo is $${minSubtotal.toFixed(2)}.`,
-        subtotal,
-        discountAmount: 0,
-        total: subtotal,
+        ...totals,
       };
     }
 
     const discountAmount = this.computeDiscountAmount(rule, subtotal);
-    const total = Number((subtotal - discountAmount).toFixed(2));
+    const totals = this.computeCheckoutTotals(subtotal, discountAmount, taxRate);
     return {
       valid: true,
       promoId: rule.id,
@@ -239,26 +298,85 @@ export class OrdersService {
       code: normalizedCode,
       label: rule.name,
       message: 'Promo code applied.',
-      subtotal,
-      discountAmount,
-      total,
+      ...totals,
     };
   }
 
   async validatePromo(userId: string, rawCode: string): Promise<PromoPreview> {
     const cart = await this.cartService.getCart(userId);
     const subtotal = Number(cart.totalPrice.toFixed(2));
+    const { taxRate } = await this.pricingSettingsService.getCheckoutConfig();
     if (!rawCode.trim()) {
+      const totals = this.computeCheckoutTotals(subtotal, 0, taxRate);
       return {
         valid: false,
         code: '',
         message: 'Promo code is required.',
-        subtotal,
-        discountAmount: 0,
-        total: subtotal,
+        ...totals,
       };
     }
-    return this.evaluatePromo(rawCode, subtotal);
+    return this.evaluatePromo(userId, rawCode, subtotal, taxRate);
+  }
+
+  async getCheckoutConfig() {
+    return this.pricingSettingsService.getCheckoutConfig();
+  }
+
+  private calculateStickerReward(totalPrice: number) {
+    return Math.max(1, Math.floor(totalPrice / 10));
+  }
+
+  private async awardPurchaseStickers(orderId: string) {
+    const existing = await this.prisma.stickerLedger.findFirst({
+      where: {
+        orderId,
+        type: 'ORDER_EARN',
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return;
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        userId: true,
+        totalPrice: true,
+      },
+    });
+
+    if (!order) {
+      return;
+    }
+
+    const stickers = this.calculateStickerReward(Number(order.totalPrice));
+    if (stickers <= 0) {
+      return;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: order.userId },
+        data: {
+          stickerBalance: {
+            increment: stickers,
+          },
+        },
+      });
+
+      await tx.stickerLedger.create({
+        data: {
+          userId: order.userId,
+          type: 'ORDER_EARN',
+          delta: stickers,
+          note: `Earned from order ${order.id.slice(-8).toUpperCase()}`,
+          orderId: order.id,
+        },
+      });
+    });
   }
 
   private async resolveWarehouseDeliveryAssigneeStaffId() {
@@ -334,8 +452,17 @@ export class OrdersService {
     userId: string,
     shipping?: CreateOrderDto,
   ): Promise<Order & { orderItems: OrderItem[] }> {
+    // Get user's cart
+    const cart = await this.cartService.getCart(userId);
+
+    if (!cart.items || cart.items.length === 0) {
+      throw new BadRequestException('Cart is empty');
+    }
+
+    const hasPhysicalItems = cart.items.some((item) => item.format !== 'EBOOK');
     const deliveryType = shipping?.deliveryType ?? DeliveryType.HOME_DELIVERY;
-    const isStorePickup = deliveryType === DeliveryType.STORE_PICKUP;
+    const isStorePickup = hasPhysicalItems
+      && deliveryType === DeliveryType.STORE_PICKUP;
     const selectedStore = isStorePickup
       ? await this.prisma.store.findFirst({
           where: {
@@ -349,13 +476,6 @@ export class OrdersService {
       throw new BadRequestException(
         'An active pickup store is required for store pickup orders.',
       );
-    }
-
-    // Get user's cart
-    const cart = await this.cartService.getCart(userId);
-
-    if (!cart.items || cart.items.length === 0) {
-      throw new BadRequestException('Cart is empty');
     }
 
     // Validate stock availability for all items and collect book prices
@@ -398,9 +518,15 @@ export class OrdersService {
     let promoCode: string | null = null;
     let promoId: string | null = null;
     let promoMaxRedemptions: number | null = null;
+    const { taxRate } = await this.pricingSettingsService.getCheckoutConfig();
 
     if (shipping?.promoCode?.trim()) {
-      const promo = await this.evaluatePromo(shipping.promoCode, subtotalPrice);
+      const promo = await this.evaluatePromo(
+        userId,
+        shipping.promoCode,
+        subtotalPrice,
+        taxRate,
+      );
       if (!promo.valid) {
         throw new BadRequestException(promo.message);
       }
@@ -410,7 +536,11 @@ export class OrdersService {
       promoMaxRedemptions = promo.maxRedemptions ?? null;
     }
 
-    const discountedTotal = Number((subtotalPrice - discountAmount).toFixed(2));
+    const checkoutTotals = this.computeCheckoutTotals(
+      subtotalPrice,
+      discountAmount,
+      taxRate,
+    );
 
     // Create order with transaction
     return await this.prisma.$transaction(async (tx) => {
@@ -423,7 +553,7 @@ export class OrdersService {
           subtotalPrice,
           discountAmount,
           promoCode,
-          totalPrice: discountedTotal,
+          totalPrice: checkoutTotals.total,
           status: 'PENDING',
           shippingFullName: shipping?.fullName ?? null,
           shippingEmail: shipping?.email ?? null,
@@ -513,6 +643,25 @@ export class OrdersService {
               },
             },
           });
+
+          const lotAllocations = await allocateInventoryLots(tx, {
+            storeId: selectedStore!.id,
+            bookId: cartItem.bookId,
+            quantity: cartItem.quantity,
+          });
+
+          for (const allocation of lotAllocations) {
+            await tx.orderItemInventoryAllocation.create({
+              data: {
+                orderItemId: orderItem.id,
+                inventoryLotId: allocation.inventoryLotId,
+                quantity: allocation.quantity,
+                ownershipType: allocation.ownershipType,
+                unitCostAtAllocation: allocation.unitCost,
+                revenueSharePctSnapshot: allocation.revenueSharePct,
+              },
+            });
+          }
         }
       }
 
@@ -531,6 +680,24 @@ export class OrdersService {
       where: { userId },
       include: {
         pickupStore: true,
+        returnRequests: {
+          include: {
+            book: {
+              select: {
+                id: true,
+                title: true,
+                author: true,
+              },
+            },
+            reviewedByUser: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
         orderItems: {
           include: {
             book: true,
@@ -553,6 +720,31 @@ export class OrdersService {
       include: {
         pickupStore: true,
         user: true, // so admin sees who placed the order
+        returnRequests: {
+          include: {
+            book: {
+              select: {
+                id: true,
+                title: true,
+                author: true,
+              },
+            },
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+            reviewedByUser: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
         orderItems: {
           include: {
             book: true,
@@ -572,6 +764,24 @@ export class OrdersService {
       },
       include: {
         pickupStore: true,
+        returnRequests: {
+          include: {
+            book: {
+              select: {
+                id: true,
+                title: true,
+                author: true,
+              },
+            },
+            reviewedByUser: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
         orderItems: {
           include: {
             book: true,
@@ -652,7 +862,11 @@ export class OrdersService {
       if (hasPhysicalItems) {
         if (updated.deliveryType === DeliveryType.HOME_DELIVERY) {
           await this.ensureDeliveryTaskForOrder(updated);
+        } else {
+          await this.awardPurchaseStickers(updated.id);
         }
+      } else {
+        await this.awardPurchaseStickers(updated.id);
       }
     }
 
@@ -681,7 +895,7 @@ export class OrdersService {
       );
     }
 
-    return this.prisma.order.update({
+    const updated = await this.prisma.order.update({
       where: { id: orderId },
       data: { status: 'COMPLETED' },
       include: {
@@ -693,6 +907,8 @@ export class OrdersService {
         },
       },
     });
+    await this.awardPurchaseStickers(updated.id);
+    return updated;
   }
 
   async cancelOrder(userId: string, orderId: string): Promise<Order> {
@@ -858,6 +1074,342 @@ export class OrdersService {
       throw new NotFoundException('Delivery task not found');
     }
 
-    return this.staffService.completeTask(taskId, actorUserId);
+    const completedTask = await this.staffService.completeTask(
+      taskId,
+      actorUserId,
+    );
+    const linkedOrderId = this.getOrderIdFromTaskMetadata(completedTask.metadata);
+    if (linkedOrderId) {
+      await this.awardPurchaseStickers(linkedOrderId);
+    }
+
+    return completedTask;
+  }
+
+  async listSavedAddresses(userId: string) {
+    return this.prisma.savedAddress.findMany({
+      where: { userId },
+      orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
+    });
+  }
+
+  async createSavedAddress(userId: string, dto: CreateSavedAddressDto) {
+    const address = await this.prisma.savedAddress.create({
+      data: {
+        userId,
+        label: dto.label.trim(),
+        fullName: dto.fullName.trim(),
+        email: dto.email.trim().toLowerCase(),
+        phone: dto.phone.trim(),
+        address: dto.address.trim(),
+        city: dto.city.trim(),
+        state: dto.state.trim(),
+        zipCode: dto.zipCode.trim(),
+        country: dto.country.trim(),
+        isDefault: dto.isDefault ?? false,
+      },
+    });
+
+    if (address.isDefault) {
+      await this.upsertDefaultAddressState(userId, address.id);
+    }
+
+    return this.prisma.savedAddress.findUnique({ where: { id: address.id } });
+  }
+
+  async updateSavedAddress(
+    userId: string,
+    addressId: string,
+    dto: UpdateSavedAddressDto,
+  ) {
+    const existing = await this.prisma.savedAddress.findFirst({
+      where: { id: addressId, userId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Saved address not found');
+    }
+
+    const updated = await this.prisma.savedAddress.update({
+      where: { id: addressId },
+      data: {
+        ...(dto.label !== undefined ? { label: dto.label.trim() } : {}),
+        ...(dto.fullName !== undefined ? { fullName: dto.fullName.trim() } : {}),
+        ...(dto.email !== undefined
+          ? { email: dto.email.trim().toLowerCase() }
+          : {}),
+        ...(dto.phone !== undefined ? { phone: dto.phone.trim() } : {}),
+        ...(dto.address !== undefined ? { address: dto.address.trim() } : {}),
+        ...(dto.city !== undefined ? { city: dto.city.trim() } : {}),
+        ...(dto.state !== undefined ? { state: dto.state.trim() } : {}),
+        ...(dto.zipCode !== undefined ? { zipCode: dto.zipCode.trim() } : {}),
+        ...(dto.country !== undefined ? { country: dto.country.trim() } : {}),
+        ...(dto.isDefault !== undefined ? { isDefault: dto.isDefault } : {}),
+      },
+    });
+
+    if (updated.isDefault) {
+      await this.upsertDefaultAddressState(userId, updated.id);
+    }
+
+    return this.prisma.savedAddress.findUnique({ where: { id: updated.id } });
+  }
+
+  async deleteSavedAddress(userId: string, addressId: string) {
+    const existing = await this.prisma.savedAddress.findFirst({
+      where: { id: addressId, userId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Saved address not found');
+    }
+
+    await this.prisma.savedAddress.delete({ where: { id: addressId } });
+
+    if (existing.isDefault) {
+      const nextDefault = await this.prisma.savedAddress.findFirst({
+        where: { userId },
+        orderBy: { updatedAt: 'desc' },
+      });
+      if (nextDefault) {
+        await this.prisma.savedAddress.update({
+          where: { id: nextDefault.id },
+          data: { isDefault: true },
+        });
+      }
+    }
+
+    return { success: true };
+  }
+
+  async createReturnRequest(
+    userId: string,
+    orderId: string,
+    dto: CreateReturnRequestDto,
+  ) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+      include: {
+        orderItems: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    if (
+      order.status !== OrderStatus.CONFIRMED &&
+      order.status !== OrderStatus.COMPLETED
+    ) {
+      throw new BadRequestException(
+        'Return requests are available only for confirmed or completed orders.',
+      );
+    }
+
+    if (dto.bookId) {
+      const item = order.orderItems.find((entry) => entry.bookId === dto.bookId);
+      if (!item) {
+        throw new BadRequestException('Selected book is not part of this order.');
+      }
+      if ((dto.requestedQty ?? 1) > item.quantity) {
+        throw new BadRequestException('Requested quantity exceeds purchased quantity.');
+      }
+    }
+
+    const existingOpen = await this.prisma.returnRequest.findFirst({
+      where: {
+        orderId,
+        userId,
+        ...(dto.bookId ? { bookId: dto.bookId } : {}),
+        status: {
+          in: [
+            ReturnRequestStatus.REQUESTED,
+            ReturnRequestStatus.APPROVED,
+            ReturnRequestStatus.RECEIVED,
+          ],
+        },
+      },
+      select: { id: true },
+    });
+
+    if (existingOpen) {
+      throw new BadRequestException(
+        'There is already an active return request for this order item.',
+      );
+    }
+
+    return this.prisma.returnRequest.create({
+      data: {
+        orderId,
+        userId,
+        bookId: dto.bookId ?? null,
+        reason: dto.reason.trim(),
+        details: dto.details?.trim() || null,
+        requestedQty: dto.requestedQty ?? 1,
+      },
+      include: {
+        book: {
+          select: {
+            id: true,
+            title: true,
+            author: true,
+          },
+        },
+      },
+    });
+  }
+
+  async listReturnRequestsForAdmin(
+    actorUserId: string,
+    status?: ReturnRequestStatus,
+  ) {
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.reports.view',
+    );
+
+    return this.prisma.returnRequest.findMany({
+      where: status ? { status } : undefined,
+      include: {
+        order: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            totalPrice: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        book: {
+          select: {
+            id: true,
+            title: true,
+            author: true,
+          },
+        },
+        reviewedByUser: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async reviewReturnRequest(
+    requestId: string,
+    dto: ReviewReturnRequestDto,
+    actorUserId: string,
+  ) {
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.reports.view',
+    );
+
+    const existing = await this.prisma.returnRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        book: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Return request not found');
+    }
+
+    const reviewed = await this.prisma.returnRequest.update({
+      where: { id: requestId },
+      data: {
+        status: dto.status,
+        resolutionNote: dto.resolutionNote?.trim() || null,
+        refundAmount:
+          dto.refundAmount !== undefined ? new Prisma.Decimal(dto.refundAmount) : null,
+        reviewedByUserId: actorUserId,
+        reviewedAt: new Date(),
+      },
+      include: {
+        order: {
+          select: {
+            id: true,
+            status: true,
+            totalPrice: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        book: {
+          select: {
+            id: true,
+            title: true,
+            author: true,
+          },
+        },
+        reviewedByUser: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    await this.prisma.staffAuditLog.create({
+      data: {
+        actorUserId,
+        action: 'returnRequest.review',
+        resource: 'returnRequest',
+        resourceId: requestId,
+        changes: {
+          before: {
+            status: existing.status,
+            resolutionNote: existing.resolutionNote,
+            refundAmount: existing.refundAmount,
+          },
+          after: {
+            status: reviewed.status,
+            resolutionNote: reviewed.resolutionNote,
+            refundAmount: reviewed.refundAmount,
+          },
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    await this.notificationsService.createUserNotification({
+      userId: reviewed.user.id,
+      type: 'return_update',
+      title: 'Your return request was updated',
+      message:
+        reviewed.status === ReturnRequestStatus.REJECTED
+          ? `Return request for ${reviewed.book?.title ?? 'your order'} was declined.`
+          : `Return request for ${reviewed.book?.title ?? 'your order'} moved to ${reviewed.status}.`,
+      link: `/orders`,
+    });
+
+    return reviewed;
   }
 }

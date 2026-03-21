@@ -5,11 +5,18 @@ import { ValidationPipe } from '@nestjs/common';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppConfigService } from './config/config.service';
+import express from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // The bootstrap stays intentionally thin: app-wide middleware, validation, docs,
+  // and environment-driven runtime configuration all happen here.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
 
-  // Get configuration service
+  // Allow larger rich-text/blog payloads (e.g. embedded base64 images)
+  app.use(express.json({ limit: '20mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
+  // Centralized config keeps env access out of feature modules.
   const configService = app.get(AppConfigService);
 
   // Global exception filter
@@ -35,7 +42,7 @@ async function bootstrap() {
     });
   }
 
-  // Swagger configuration
+  // Swagger documents the public API surface for the frontend and manual testing.
   const config = new DocumentBuilder()
     .setTitle(configService.swaggerTitle)
     .setDescription(configService.swaggerDescription)

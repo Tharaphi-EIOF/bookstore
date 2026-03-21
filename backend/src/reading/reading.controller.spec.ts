@@ -17,6 +17,9 @@ describe('ReadingController', () => {
           useValue: {
             getMyBooks: jest.fn(),
             addBook: jest.fn(),
+            addSession: jest.fn(),
+            updateSession: jest.fn(),
+            removeSession: jest.fn(),
             updateStatus: jest.fn(),
             updateProgress: jest.fn(),
             updateDailyGoal: jest.fn(),
@@ -119,6 +122,17 @@ describe('ReadingController', () => {
     const result = await controller.removeBook(req, 'book-1');
 
     expect(service.removeBook).toHaveBeenCalledWith('user-1', 'book-1');
+    expect(result).toEqual(payload);
+  });
+
+  it('delegates removeSession', async () => {
+    const req = { user: { sub: 'user-1' } };
+    const payload = { id: 'session-1' };
+    service.removeSession.mockResolvedValue(payload as any);
+
+    const result = await controller.removeSession(req, 'session-1');
+
+    expect(service.removeSession).toHaveBeenCalledWith('user-1', 'session-1');
     expect(result).toEqual(payload);
   });
 });

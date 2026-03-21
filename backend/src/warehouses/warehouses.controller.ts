@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -19,6 +20,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  InventoryOwnershipType,
   PurchaseOrderStatus,
   PurchaseRequestStatus,
   WarehouseAlertStatus,
@@ -38,6 +40,8 @@ import { UpdateVendorDto } from './dto/update-vendor.dto';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { ReceivePurchaseOrderDto } from './dto/receive-purchase-order.dto';
 import { CreatePurchaseOrdersBatchDto } from './dto/create-purchase-orders-batch.dto';
+import { CreateReorderSuggestionRequestsDto } from './dto/create-reorder-suggestion-requests.dto';
+import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 
 @ApiTags('warehouses')
 @Controller('warehouses')
@@ -65,6 +69,212 @@ export class WarehousesController {
   })
   getBookStockPresence() {
     return this.warehousesService.getBookStockPresence();
+  }
+
+  @Get('admin/inventory-lots')
+  @Permissions('warehouse.view')
+  @ApiOperation({
+    summary:
+      'List lot-level inventory with ownership source tracking for audit and operations',
+  })
+  @ApiQuery({ name: 'bookId', required: false, type: String })
+  @ApiQuery({ name: 'warehouseId', required: false, type: String })
+  @ApiQuery({ name: 'storeId', required: false, type: String })
+  @ApiQuery({
+    name: 'ownershipType',
+    required: false,
+    enum: InventoryOwnershipType,
+  })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  listInventoryLots(
+    @Query('bookId') bookId?: string,
+    @Query('warehouseId') warehouseId?: string,
+    @Query('storeId') storeId?: string,
+    @Query('ownershipType') ownershipType?: InventoryOwnershipType,
+    @Query('limit') limit?: string,
+  ) {
+    return this.warehousesService.listInventoryLots({
+      bookId,
+      warehouseId,
+      storeId,
+      ownershipType,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('admin/catalog-breakdown')
+  @Permissions('finance.reports.view')
+  @ApiOperation({
+    summary:
+      'Get catalog breakdown by author, category, or publisher/vendor for admin dashboards',
+  })
+  @ApiQuery({
+    name: 'groupBy',
+    required: false,
+    enum: ['author', 'category', 'genre', 'vendor'],
+  })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  getCatalogBreakdown(
+    @Request() req: { user: { sub: string } },
+    @Query('groupBy') groupBy?: 'author' | 'category' | 'genre' | 'vendor',
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = limit ? Number(limit) : 20;
+    return this.warehousesService.getCatalogBreakdown(
+      req.user.sub,
+      groupBy ?? 'author',
+      parsedLimit,
+    );
+  }
+
+  @Get('admin/author-performance')
+  @Permissions('finance.reports.view')
+  @ApiOperation({
+    summary:
+      'Get author-level sales and catalog performance metrics for admin dashboard',
+  })
+  @ApiQuery({ name: 'fromDate', required: false, type: String })
+  @ApiQuery({ name: 'toDate', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  getAuthorPerformance(
+    @Request() req: { user: { sub: string } },
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.warehousesService.getAuthorPerformance(req.user.sub, {
+      fromDate: fromDate ? new Date(fromDate) : undefined,
+      toDate: toDate ? new Date(toDate) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('admin/reorder-suggestions')
+  @Permissions('finance.reports.view')
+  @ApiOperation({
+    summary:
+      'Get auto reorder suggestions based on sales velocity and current/pending stock',
+  })
+  @ApiQuery({ name: 'warehouseId', required: false, type: String })
+  @ApiQuery({ name: 'leadTimeDays', required: false, type: Number })
+  @ApiQuery({ name: 'coverageDays', required: false, type: Number })
+  @ApiQuery({ name: 'minDailySales', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  getReorderSuggestions(
+    @Request() req: { user: { sub: string } },
+    @Query('warehouseId') warehouseId?: string,
+    @Query('leadTimeDays') leadTimeDays?: string,
+    @Query('coverageDays') coverageDays?: string,
+    @Query('minDailySales') minDailySales?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.warehousesService.getReorderSuggestions(req.user.sub, {
+      warehouseId,
+      leadTimeDays: leadTimeDays ? Number(leadTimeDays) : undefined,
+      coverageDays: coverageDays ? Number(coverageDays) : undefined,
+      minDailySales: minDailySales ? Number(minDailySales) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Post('admin/reorder-suggestions/create-purchase-requests')
+  @Permissions('warehouse.purchase_request.create')
+  @ApiOperation({
+    summary:
+      'Create purchase requests from reorder suggestions for selected warehouse',
+  })
+  createPurchaseRequestsFromReorderSuggestions(
+    @Request() req: { user: { sub: string } },
+    @Body() dto: CreateReorderSuggestionRequestsDto,
+  ) {
+    return this.warehousesService.createPurchaseRequestsFromReorderSuggestions(
+      req.user.sub,
+      dto,
+    );
+  }
+
+  @Get('admin/restock-improvement')
+  @Permissions('finance.reports.view')
+  @ApiOperation({
+    summary:
+      'List out-of-stock and low-stock books with demand signals for restock planning',
+  })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  getRestockImprovementList(
+    @Request() req: { user: { sub: string } },
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = limit ? Number(limit) : 50;
+    return this.warehousesService.getRestockImprovementList(
+      req.user.sub,
+      parsedLimit,
+    );
+  }
+
+  @Get('admin/missing-book-demand')
+  @Permissions('finance.reports.view')
+  @ApiOperation({
+    summary:
+      'List customer stock inquiries for titles not currently available in the catalog',
+  })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  getMissingBookDemand(
+    @Request() req: { user: { sub: string } },
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = limit ? Number(limit) : 50;
+    return this.warehousesService.getMissingBookDemand(
+      req.user.sub,
+      parsedLimit,
+    );
+  }
+
+  @Get('admin/purchase-history-summary')
+  @Permissions('finance.reports.view')
+  @ApiOperation({
+    summary:
+      'Get purchase and procurement summary within an optional date range',
+  })
+  @ApiQuery({ name: 'fromDate', required: false, type: String })
+  @ApiQuery({ name: 'toDate', required: false, type: String })
+  getPurchaseHistorySummary(
+    @Request() req: { user: { sub: string } },
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
+    return this.warehousesService.getPurchaseHistorySummary(req.user.sub, {
+      fromDate: fromDate ? new Date(fromDate) : undefined,
+      toDate: toDate ? new Date(toDate) : undefined,
+    });
+  }
+
+  @Get('admin/revenue-share-simulation')
+  @Permissions('finance.reports.view')
+  @ApiOperation({
+    summary:
+      'Simulate publisher/vendor revenue share for sold books sourced from a vendor',
+  })
+  @ApiQuery({ name: 'vendorId', required: true, type: String })
+  @ApiQuery({ name: 'sharePercent', required: true, type: Number })
+  @ApiQuery({ name: 'fromDate', required: false, type: String })
+  @ApiQuery({ name: 'toDate', required: false, type: String })
+  getRevenueShareSimulation(
+    @Request() req: { user: { sub: string } },
+    @Query('vendorId') vendorId: string,
+    @Query('sharePercent') sharePercent: string,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
+    if (!vendorId?.trim()) {
+      throw new BadRequestException('vendorId is required.');
+    }
+    const parsedSharePercent = Number(sharePercent);
+    return this.warehousesService.getRevenueShareSimulation(req.user.sub, {
+      vendorId,
+      sharePercent: parsedSharePercent,
+      fromDate: fromDate ? new Date(fromDate) : undefined,
+      toDate: toDate ? new Date(toDate) : undefined,
+    });
   }
 
   @Post()
@@ -192,6 +402,16 @@ export class WarehousesController {
     });
   }
 
+  @Get('purchase-pricing-preview')
+  @Permissions('warehouse.purchase_order.view')
+  @ApiOperation({
+    summary:
+      'Get pricing rule used to project retail price from vendor unit cost',
+  })
+  getPurchasePricingPreview(@Request() req: { user: { sub: string } }) {
+    return this.warehousesService.getPurchasePricingPreview(req.user.sub);
+  }
+
   @Post('purchase-orders')
   @Permissions('warehouse.purchase_order.create')
   @ApiOperation({
@@ -214,6 +434,31 @@ export class WarehousesController {
     @Body() dto: CreatePurchaseOrdersBatchDto,
   ) {
     return this.warehousesService.createPurchaseOrdersBatch(dto, req.user.sub);
+  }
+
+  @Patch('purchase-orders/:id')
+  @Permissions('warehouse.purchase_order.create')
+  @ApiOperation({
+    summary: 'Update a draft purchase order before sending or receiving',
+  })
+  updatePurchaseOrder(
+    @Request() req: { user: { sub: string } },
+    @Param('id') id: string,
+    @Body() dto: UpdatePurchaseOrderDto,
+  ) {
+    return this.warehousesService.updatePurchaseOrder(id, dto, req.user.sub);
+  }
+
+  @Post('purchase-orders/:id/reorder')
+  @Permissions('warehouse.purchase_order.create')
+  @ApiOperation({
+    summary: 'Create a new draft purchase order by copying a previous vendor order',
+  })
+  reorderPurchaseOrder(
+    @Request() req: { user: { sub: string } },
+    @Param('id') id: string,
+  ) {
+    return this.warehousesService.reorderPurchaseOrder(id, req.user.sub);
   }
 
   @Patch('purchase-orders/:id/receive')

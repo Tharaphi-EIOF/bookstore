@@ -26,6 +26,17 @@ const favoriteItemSchema = z.object({
   book: bookLiteSchema.optional(),
 })
 
+const stockAlertItemSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  bookId: z.string(),
+  isActive: z.boolean(),
+  notifiedAt: z.string().nullable().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  book: bookLiteSchema.optional(),
+})
+
 type WishlistItem = z.infer<typeof wishlistItemSchema>
 type FavoriteItem = z.infer<typeof favoriteItemSchema>
 
@@ -48,6 +59,19 @@ export const useFavorites = (enabled = true) => {
     queryFn: async () => {
       const response = await api.get('/library/favorites')
       return z.array(favoriteItemSchema).parse(response.data)
+    },
+    enabled,
+    staleTime: 1000 * 60 * 2,
+    placeholderData: (previousData) => previousData,
+  })
+}
+
+export const useStockAlerts = (enabled = true) => {
+  return useQuery({
+    queryKey: ['library', 'stock-alerts'],
+    queryFn: async () => {
+      const response = await api.get('/library/stock-alerts')
+      return z.array(stockAlertItemSchema).parse(response.data)
     },
     enabled,
     staleTime: 1000 * 60 * 2,
@@ -171,6 +195,32 @@ export const useRemoveFromFavorites = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['library', 'favorites'] })
+    },
+  })
+}
+
+export const useSubscribeToStockAlert = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ bookId }: { bookId: string }) => {
+      const response = await api.post(`/library/stock-alerts/${bookId}`)
+      return stockAlertItemSchema.parse(response.data)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['library', 'stock-alerts'] })
+    },
+  })
+}
+
+export const useUnsubscribeFromStockAlert = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ bookId }: { bookId: string }) => {
+      const response = await api.delete(`/library/stock-alerts/${bookId}`)
+      return stockAlertItemSchema.parse(response.data)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['library', 'stock-alerts'] })
     },
   })
 }

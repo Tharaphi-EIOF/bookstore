@@ -7,7 +7,7 @@ import { useCart } from '@/services/cart'
 import { useLogout } from '@/services/auth'
 import { canAccessAdmin } from '@/lib/permissions'
 import Logo from "@/components/ui/Logo";
-import Avatar from '@/components/user/Avatar'
+import Avatar from '@/features/profile/shared/components/Avatar'
 import { useTheme } from '@/hooks/useTheme'
 import NotificationBell from './NotificationBell'
 
@@ -21,10 +21,12 @@ const Navbar = () => {
   const { theme, toggleTheme } = useTheme()
   const [isLibraryMenuOpen, setIsLibraryMenuOpen] = useState(false)
   const [isBookstoreMenuOpen, setIsBookstoreMenuOpen] = useState(false)
+  const [isBlogsMenuOpen, setIsBlogsMenuOpen] = useState(false)
   const [isNavbarVisible, setIsNavbarVisible] = useState(true)
   const [isAtTop, setIsAtTop] = useState(true)
   const libraryMenuCloseTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bookstoreMenuCloseTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const blogsMenuCloseTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastScrollY = useRef(0)
 
   const totalItems = cartData?.reduce((sum, item) => sum + item.quantity, 0) || 0
@@ -37,8 +39,9 @@ const Navbar = () => {
   const isActive = (path: string) =>
     location.pathname === path || location.pathname.startsWith(`${path}/`)
 
-  const isLibrarySectionActive = isActive('/library') || isActive('/reading-insights')
-  const isBookstoreSectionActive = isActive('/books') || isActive('/orders') || isActive('/cart')
+  const isLibrarySectionActive = isActive('/library') || isActive('/reading-insights') || isActive('/rewards')
+  const isBookstoreSectionActive = isActive('/books') || isActive('/orders') || isActive('/cart') || isActive('/rewards')
+  const isBlogsSectionActive = isActive('/blogs')
 
   const openLibraryMenu = () => {
     if (libraryMenuCloseTimeout.current) {
@@ -74,6 +77,23 @@ const Navbar = () => {
     }, 200)
   }
 
+  const openBlogsMenu = () => {
+    if (blogsMenuCloseTimeout.current) {
+      clearTimeout(blogsMenuCloseTimeout.current)
+      blogsMenuCloseTimeout.current = null
+    }
+    setIsBlogsMenuOpen(true)
+  }
+
+  const closeBlogsMenuWithDelay = () => {
+    if (blogsMenuCloseTimeout.current) {
+      clearTimeout(blogsMenuCloseTimeout.current)
+    }
+    blogsMenuCloseTimeout.current = setTimeout(() => {
+      setIsBlogsMenuOpen(false)
+    }, 200)
+  }
+
   useEffect(() => {
     return () => {
       if (libraryMenuCloseTimeout.current) {
@@ -81,6 +101,9 @@ const Navbar = () => {
       }
       if (bookstoreMenuCloseTimeout.current) {
         clearTimeout(bookstoreMenuCloseTimeout.current)
+      }
+      if (blogsMenuCloseTimeout.current) {
+        clearTimeout(blogsMenuCloseTimeout.current)
       }
     }
   }, [])
@@ -113,6 +136,7 @@ const Navbar = () => {
         setIsNavbarVisible(false)
         setIsLibraryMenuOpen(false)
         setIsBookstoreMenuOpen(false)
+        setIsBlogsMenuOpen(false)
       } else if (delta < 0) {
         setIsNavbarVisible(true)
       }
@@ -254,6 +278,15 @@ const Navbar = () => {
 
                     {isAuthenticated && (
                       <Link
+                        to="/rewards"
+                        className={`mt-1 ${menuItemClass(isActive('/rewards'))}`}
+                      >
+                        Rewards
+                      </Link>
+                    )}
+
+                    {isAuthenticated && (
+                      <Link
                         to="/cart"
                         className={`mt-1 ${menuItemClass(isActive('/cart'))}`}
                       >
@@ -268,12 +301,63 @@ const Navbar = () => {
                 >
                   Contact
                 </Link>
-                <Link
-                  to="/blogs"
-                  className={navLinkClass('/blogs')}
+                <div
+                  className="relative"
+                  onMouseEnter={openBlogsMenu}
+                  onMouseLeave={closeBlogsMenuWithDelay}
                 >
-                  Blogs
-                </Link>
+                  <Link
+                    to="/blogs"
+                    className={
+                      isBlogsSectionActive
+                        ? `
+                            inline-flex items-center gap-1 text-sm font-bold
+                            text-slate-900 dark:text-slate-100
+                            relative
+                            after:absolute after:-bottom-2 after:left-0
+                            after:h-0.5 after:w-full
+                            after:bg-primary-600
+                            dark:after:bg-[#E6B65C]
+                          `
+                        : `
+                            inline-flex items-center gap-1 text-sm font-semibold
+                            text-slate-700 dark:text-slate-300
+                            hover:text-primary-600 dark:hover:text-[#E6B65C]
+                            transition-colors
+                          `
+                    }
+                  >
+                    Blogs
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform duration-200 ${isBlogsMenuOpen ? 'rotate-180' : 'rotate-0'}`}
+                    />
+                  </Link>
+
+                  <div className={menuPanelClass(isBlogsMenuOpen)}>
+                    <Link
+                      to="/blogs"
+                      className={menuItemClass(location.pathname === '/blogs')}
+                    >
+                      Browse Blogs
+                    </Link>
+                    {isAuthenticated && (
+                      <Link
+                        to="/blogs/mine"
+                        className={`mt-1 ${menuItemClass(isActive('/blogs/mine'))}`}
+                      >
+                        My Writing
+                      </Link>
+                    )}
+                    {isAuthenticated && (
+                      <Link
+                        to="/blogs/write"
+                        className={`mt-1 ${menuItemClass(isActive('/blogs/write'))}`}
+                      >
+                        Write New
+                      </Link>
+                    )}
+                  </div>
+                </div>
                 {isAuthenticated && (
                   <div
                     className="relative"
@@ -319,6 +403,12 @@ const Navbar = () => {
                         className={`mt-1 ${menuItemClass(isActive('/reading-insights'))}`}
                       >
                         Reading Insights
+                      </Link>
+                      <Link
+                        to="/rewards"
+                        className={`mt-1 ${menuItemClass(isActive('/rewards'))}`}
+                      >
+                        Points Club
                       </Link>
                     </div>
                   </div>

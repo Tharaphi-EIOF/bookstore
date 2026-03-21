@@ -7,15 +7,18 @@ import {
   LayoutDashboard,
   BookOpen,
   DollarSign,
+  Tag,
   Package,
   Users,
   Warehouse,
   Building2,
   ShieldCheck,
+  ListChecks,
   ListTodo,
   BarChart3,
   ClipboardCheck,
   Truck,
+  Gift,
   MessageCircleMore,
   Trash2,
   X,
@@ -27,31 +30,37 @@ interface NavItem {
   path: string
   icon: LucideIcon
   section: 'overview' | 'catalog' | 'commerce' | 'operations' | 'people'
+  group?: string
   permission?: string | string[]
   requireAll?: boolean
   adminOnly?: boolean
 }
 
 const navItems: NavItem[] = [
-  { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, section: 'overview' },
+  { name: 'Insights', path: '/admin', icon: LayoutDashboard, section: 'overview' },
   { name: 'Books', path: '/admin/books', icon: BookOpen, section: 'catalog', adminOnly: true },
   { name: 'Bin', path: '/admin/bin', icon: Trash2, section: 'catalog', adminOnly: true },
-  { name: 'Inquiries', path: '/admin/inquiries', icon: MessageCircleMore, section: 'commerce', adminOnly: true },
-  { name: 'Orders', path: '/admin/orders', icon: Package, section: 'commerce', permission: 'finance.reports.view' },
-  { name: 'Promotions', path: '/admin/promotions', icon: DollarSign, section: 'commerce', permission: 'finance.payout.manage' },
-  { name: 'Delivery', path: '/admin/delivery', icon: Truck, section: 'operations', permission: 'warehouse.purchase_order.view' },
-  { name: 'Warehouses', path: '/admin/warehouses', icon: Warehouse, section: 'operations', permission: 'warehouse.view' },
-  { name: 'Book Distribution', path: '/admin/book-distribution', icon: BookOpen, section: 'operations', permission: 'warehouse.view' },
-  { name: 'Stores', path: '/admin/stores', icon: Building2, section: 'operations', permission: 'warehouse.view' },
-  { name: 'Vendors', path: '/admin/vendors', icon: Building2, section: 'operations', permission: ['warehouse.view', 'warehouse.vendor.manage'], requireAll: false },
-  { name: 'Purchase Requests', path: '/admin/purchase-requests', icon: ClipboardCheck, section: 'operations', permission: ['warehouse.purchase_request.view', 'finance.purchase_request.review', 'finance.purchase_request.approve', 'finance.purchase_request.reject'], requireAll: false },
-  { name: 'Purchase Orders', path: '/admin/purchase-orders', icon: Truck, section: 'operations', permission: ['warehouse.purchase_order.view', 'finance.purchase_order.view', 'warehouse.purchase_order.create', 'warehouse.purchase_order.receive'], requireAll: false },
-  { name: 'Users', path: '/admin/users', icon: Users, section: 'people', adminOnly: true },
-  { name: 'Staff', path: '/admin/staff', icon: Users, section: 'people', permission: 'staff.view' },
-  { name: 'Departments', path: '/admin/staff/departments', icon: Building2, section: 'people', permission: ['staff.manage', 'staff.view'], requireAll: true },
-  { name: 'Role Matrix', path: '/admin/staff/roles', icon: ShieldCheck, section: 'people', permission: 'admin.permission.manage' },
-  { name: 'Staff Tasks', path: '/admin/staff/tasks', icon: ListTodo, section: 'people', permission: ['staff.view', 'hr.performance.manage'], requireAll: true },
-  { name: 'Performance', path: '/admin/staff/performance', icon: BarChart3, section: 'people', permission: 'hr.performance.manage' },
+  { name: 'Inquiries', path: '/admin/inquiries', icon: MessageCircleMore, section: 'commerce', group: 'Sales', adminOnly: true },
+  { name: 'Orders', path: '/admin/orders', icon: Package, section: 'commerce', group: 'Sales', permission: 'finance.reports.view' },
+  { name: 'Book Leads', path: '/admin/book-leads', icon: ClipboardCheck, section: 'commerce', group: 'Sales', permission: 'finance.reports.view' },
+  { name: 'Blog Moderation', path: '/admin/blog-moderation', icon: ClipboardCheck, section: 'commerce', group: 'Growth', permission: 'blogs.moderate' },
+  { name: 'Pricing', path: '/admin/pricing', icon: DollarSign, section: 'commerce', group: 'Growth', permission: 'finance.payout.manage' },
+  { name: 'Promotions', path: '/admin/promotions', icon: Tag, section: 'commerce', group: 'Growth', permission: 'finance.payout.manage' },
+  { name: 'Loyalty', path: '/admin/loyalty', icon: Gift, section: 'commerce', group: 'Growth', permission: 'finance.payout.manage' },
+  { name: 'Delivery', path: '/admin/delivery', icon: Truck, section: 'operations', group: 'Inventory', permission: 'warehouse.purchase_order.view' },
+  { name: 'Warehouses', path: '/admin/warehouses', icon: Warehouse, section: 'operations', group: 'Inventory', permission: 'warehouse.view' },
+  { name: 'Partners & Distribution', path: '/admin/book-distribution', icon: BookOpen, section: 'operations', group: 'Inventory', permission: 'warehouse.view' },
+  { name: 'Stores', path: '/admin/stores', icon: Building2, section: 'operations', group: 'Inventory', permission: 'warehouse.view' },
+  { name: 'Vendors', path: '/admin/vendors', icon: Building2, section: 'operations', group: 'Procurement', permission: ['warehouse.view', 'warehouse.vendor.manage'], requireAll: false },
+  { name: 'Purchase Requests', path: '/admin/purchase-requests', icon: ClipboardCheck, section: 'operations', group: 'Procurement', permission: ['warehouse.purchase_request.view', 'finance.purchase_request.review', 'finance.purchase_request.approve', 'finance.purchase_request.reject'], requireAll: false },
+  { name: 'Purchase Orders', path: '/admin/purchase-orders', icon: Truck, section: 'operations', group: 'Procurement', permission: ['warehouse.purchase_order.view', 'finance.purchase_order.view', 'warehouse.purchase_order.create', 'warehouse.purchase_order.receive'], requireAll: false },
+  { name: 'Users', path: '/admin/users', icon: Users, section: 'people', group: 'Accounts', adminOnly: true },
+  { name: 'Staff', path: '/admin/staff', icon: Users, section: 'people', group: 'Workforce', permission: 'staff.view' },
+  { name: 'Departments', path: '/admin/staff/departments', icon: Building2, section: 'people', group: 'Workforce', permission: ['staff.manage', 'staff.view'], requireAll: true },
+  { name: 'Role Matrix', path: '/admin/staff/roles', icon: ShieldCheck, section: 'people', group: 'Access', permission: 'admin.permission.manage' },
+  { name: 'Audit Log', path: '/admin/staff/audit-logs', icon: ListChecks, section: 'people', group: 'Access', permission: 'admin.permission.manage' },
+  { name: 'Staff Tasks', path: '/admin/staff/tasks', icon: ListTodo, section: 'people', group: 'Workforce', permission: ['staff.view', 'hr.performance.manage'], requireAll: true },
+  { name: 'Performance', path: '/admin/staff/performance', icon: BarChart3, section: 'people', group: 'Workforce', permission: 'hr.performance.manage' },
 ]
 
 const sectionLabels: Record<NavItem['section'], string> = {
@@ -70,6 +79,15 @@ interface AdminSidebarProps {
 const AdminSidebar = ({ mobile = false, onCloseMobile }: AdminSidebarProps) => {
   const location = useLocation()
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    Sales: true,
+    Growth: true,
+    Inventory: true,
+    Procurement: true,
+    Accounts: true,
+    Workforce: true,
+    Access: true,
+  })
   const { user } = useAuthStore()
   const isHrFocusedUser =
     user?.role === 'USER'
@@ -139,6 +157,12 @@ const AdminSidebar = ({ mobile = false, onCloseMobile }: AdminSidebarProps) => {
           ? 'Warehouse operations workspace'
           : 'Manage your store'
   const visibleSectionOrder = ['overview', 'catalog', 'commerce', 'operations', 'people'] as const
+  const toggleGroup = (group: string) => {
+    setExpandedGroups((current) => ({
+      ...current,
+      [group]: !(current[group] ?? true),
+    }))
+  }
 
   return (
     <div
@@ -185,48 +209,74 @@ const AdminSidebar = ({ mobile = false, onCloseMobile }: AdminSidebarProps) => {
                 </p>
               )}
               <div className="space-y-1">
-                {sectionItems.map((item) => {
-                  const isActive = location.pathname === item.path
-                  const Icon = item.icon
-                  const displayName = isWarehouseFocusedUser && item.path === '/admin'
-                    ? 'Warehouse Overview'
-                    : item.name
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      className="relative block"
-                      title={isCollapsed ? displayName : ''}
-                      onClick={() => {
-                        if (mobile) onCloseMobile?.()
-                      }}
-                    >
-                      <motion.div
-                        whileHover={{ x: 4 }}
-                        className={`relative flex items-center gap-2.5 overflow-hidden rounded-lg px-2.5 py-1.5 transition-all duration-150
-                  before:absolute before:left-0 before:top-1/2 before:h-6 before:w-[3px] before:-translate-y-1/2 before:rounded-r before:transition-colors
-                  ${isActive
-                    ? "luxe-card bg-[var(--admin-accent-soft)] text-[var(--admin-accent)] before:bg-[var(--admin-accent)]"
-                    : "text-gray-700 hover:bg-slate-100/80 hover:text-[var(--admin-accent)] before:bg-transparent dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-[var(--admin-accent)]"
-                  }
-                  ${isCollapsed ? "justify-center" : ""}
-                `}
-                      >
-                        {/* ICON */}
-                        <Icon
-                          className={`h-5 w-5 flex-shrink-0
-                    ${isActive ? "text-[var(--admin-accent)]" : "text-gray-500 dark:text-slate-400"}
-                  `}
-                        />
+                {Array.from(new Set(sectionItems.map((item) => item.group ?? item.section))).map((groupKey) => {
+                  const groupItems = sectionItems.filter((item) => (item.group ?? item.section) === groupKey)
+                  const isOpen = expandedGroups[groupKey] ?? true
+                  const hasActiveItem = groupItems.some((item) => location.pathname === item.path)
 
-                        {/* LABEL */}
-                        {!isCollapsed && (
-                          <span className="text-[13px] font-medium">
-                            {displayName}
-                          </span>
-                        )}
-                      </motion.div>
-                    </Link>
+                  return (
+                    <div key={groupKey} className="space-y-1">
+                      {!isCollapsed && groupItems.some((item) => item.group) && (
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup(groupKey)}
+                          className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.18em] transition-colors ${
+                            hasActiveItem
+                              ? 'text-[var(--admin-accent)]'
+                              : 'text-slate-400 hover:bg-slate-100/70 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800/70 dark:hover:text-slate-300'
+                          }`}
+                        >
+                          <span>{groupKey}</span>
+                          <span className="text-xs">{isOpen ? '-' : '+'}</span>
+                        </button>
+                      )}
+                      {(isCollapsed || isOpen || !groupItems.some((item) => item.group)) && groupItems.map((item) => {
+                        const isInsightsItem = item.path === '/admin'
+                        const isActive = isInsightsItem
+                          ? location.pathname === '/admin'
+                            || location.pathname === '/admin/analytics'
+                            || location.pathname === '/admin/author-performance'
+                          : location.pathname === item.path
+                        const Icon = item.icon
+                        const displayName = isWarehouseFocusedUser && item.path === '/admin'
+                          ? 'Warehouse Overview'
+                          : item.name
+                        return (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            className="relative block"
+                            title={isCollapsed ? displayName : ''}
+                            onClick={() => {
+                              if (mobile) onCloseMobile?.()
+                            }}
+                          >
+                            <motion.div
+                              whileHover={{ x: 4 }}
+                              className={`relative flex items-center gap-2.5 overflow-hidden rounded-lg px-2.5 py-1.5 transition-all duration-150
+                        before:absolute before:left-0 before:top-1/2 before:h-6 before:w-[3px] before:-translate-y-1/2 before:rounded-r before:transition-colors
+                        ${isActive
+                          ? "luxe-card bg-[var(--admin-accent-soft)] text-[var(--admin-accent)] before:bg-[var(--admin-accent)]"
+                          : "text-gray-700 hover:bg-slate-100/80 hover:text-[var(--admin-accent)] before:bg-transparent dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-[var(--admin-accent)]"
+                        }
+                        ${isCollapsed ? "justify-center" : ""}
+                      `}
+                            >
+                              <Icon
+                                className={`h-5 w-5 flex-shrink-0 ${
+                                  isActive ? "text-[var(--admin-accent)]" : "text-gray-500 dark:text-slate-400"
+                                }`}
+                              />
+                              {!isCollapsed && (
+                                <span className="text-[13px] font-medium">
+                                  {displayName}
+                                </span>
+                              )}
+                            </motion.div>
+                          </Link>
+                        )
+                      })}
+                    </div>
                   )
                 })}
               </div>

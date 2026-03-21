@@ -59,6 +59,52 @@ export class LibraryService {
     });
   }
 
+  async listStockAlerts(userId: string) {
+    await this.ensureUser(userId);
+    return this.prisma.stockAlertSubscription.findMany({
+      where: { userId },
+      include: { book: true },
+      orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async subscribeToStockAlert(userId: string, bookId: string) {
+    await this.ensureUser(userId);
+    const book = await this.prisma.book.findUnique({ where: { id: bookId } });
+    if (!book) {
+      throw new NotFoundException('Book not found');
+    }
+    if ((book.stock ?? 0) > 0) {
+      throw new NotFoundException(
+        'This book is already back in stock. You do not need an alert.',
+      );
+    }
+    return this.prisma.stockAlertSubscription.upsert({
+      where: { userId_bookId: { userId, bookId } },
+      update: {
+        isActive: true,
+        notifiedAt: null,
+      },
+      create: { userId, bookId },
+      include: { book: true },
+    });
+  }
+
+  async unsubscribeFromStockAlert(userId: string, bookId: string) {
+    await this.ensureUser(userId);
+    const existing = await this.prisma.stockAlertSubscription.findUnique({
+      where: { userId_bookId: { userId, bookId } },
+    });
+    if (!existing) {
+      throw new NotFoundException('Stock alert not found');
+    }
+    return this.prisma.stockAlertSubscription.update({
+      where: { id: existing.id },
+      data: { isActive: false },
+      include: { book: true },
+    });
+  }
+
   async getFavorites(userId: string) {
     await this.ensureUser(userId);
     return this.prisma.favoriteItem.findMany({

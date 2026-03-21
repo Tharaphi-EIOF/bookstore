@@ -13,6 +13,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { JwtAuthGuard } from './jwt.guard';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { Req } from '@nestjs/common';
 @ApiTags('auth')
 @Controller('auth')
@@ -63,6 +64,18 @@ export class AuthController {
   })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current authenticated user session' })
+  @ApiResponse({
+    status: 200,
+    description: 'Current authenticated user',
+  })
+  getCurrentUser(@Req() req: any) {
+    return this.authService.getCurrentUser(req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -134,5 +147,18 @@ export class AuthController {
   })
   async updateProfile(@Req() req: any, @Body() dto: UpdateProfileDto) {
     return this.authService.updateProfile(req.user.sub, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('change-password')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Change password for current authenticated user' })
+  @ApiBody({ type: ChangePasswordDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Password changed successfully',
+  })
+  changePassword(@Req() req: any, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(req.user.sub, dto);
   }
 }

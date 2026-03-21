@@ -3,13 +3,22 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus } from '@prisma/client';
+import {
+  InventoryLotSourceType,
+  InventoryOwnershipType,
+  OrderStatus,
+} from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { assertUserPermission } from '../auth/permission-resolution';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
 import { SetStoreStockDto } from './dto/set-store-stock.dto';
 import { TransferToStoreDto } from './dto/transfer-to-store.dto';
+import {
+  allocateInventoryLots,
+  receiveInventoryLot,
+  transferInventoryLots,
+} from '../inventory/inventory-lot.helpers';
 
 @Injectable()
 export class StoresService {
@@ -237,23 +246,55 @@ export class StoresService {
     await this.ensureStore(storeId);
     await this.ensureBook(bookId);
 
-    return this.prisma.storeStock.upsert({
-      where: {
-        storeId_bookId: {
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.storeStock.findUnique({
+        where: {
+          storeId_bookId: {
+            storeId,
+            bookId,
+          },
+        },
+      });
+      const currentStock = existing?.stock ?? 0;
+      const delta = dto.stock - currentStock;
+
+      const row = await tx.storeStock.upsert({
+        where: {
+          storeId_bookId: {
+            storeId,
+            bookId,
+          },
+        },
+        update: {
+          stock: dto.stock,
+          lowStockThreshold: dto.lowStockThreshold ?? 5,
+        },
+        create: {
           storeId,
           bookId,
+          stock: dto.stock,
+          lowStockThreshold: dto.lowStockThreshold ?? 5,
         },
-      },
-      update: {
-        stock: dto.stock,
-        lowStockThreshold: dto.lowStockThreshold ?? 5,
-      },
-      create: {
-        storeId,
-        bookId,
-        stock: dto.stock,
-        lowStockThreshold: dto.lowStockThreshold ?? 5,
-      },
+      });
+
+      if (delta > 0) {
+        await receiveInventoryLot(tx, {
+          storeId,
+          bookId,
+          quantity: delta,
+          ownershipType: InventoryOwnershipType.OWNED,
+          sourceType: InventoryLotSourceType.STOCK_ADJUSTMENT,
+          note: 'Manual store stock adjustment.',
+        });
+      } else if (delta < 0) {
+        await allocateInventoryLots(tx, {
+          storeId,
+          bookId,
+          quantity: Math.abs(delta),
+        });
+      }
+
+      return row;
     });
   }
 
@@ -317,6 +358,15 @@ export class StoresService {
           stock: dto.quantity,
           lowStockThreshold: 5,
         },
+      });
+
+      await transferInventoryLots(tx, {
+        bookId: dto.bookId,
+        quantity: dto.quantity,
+        from: { warehouseId: dto.fromWarehouseId },
+        to: { storeId: dto.toStoreId },
+        note: dto.note,
+        transferSourceType: InventoryLotSourceType.STORE_TRANSFER,
       });
 
       const transfer = await tx.storeTransfer.create({

@@ -23,6 +23,7 @@
     "db:seed:append": "ts-node prisma/seed.append.ts",
     "db:seed:faker": "ts-node prisma/seed.faker.ts",
     "db:seed:ops-test": "ts-node prisma/seed.ops-test.ts",
+    "db:cleanup:ebook-sessions": "ts-node prisma/merge-ebook-autosave-sessions.ts",
     "db:normalize:book-taxonomy": "ts-node prisma/normalize-book-taxonomy.ts",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "db:reset": "prisma migrate reset --force && npm run db:seed",
@@ -30,6 +31,7 @@
     "db:restore": "bash scripts/db-restore.sh"
   },
   "dependencies": {
+    "@clerk/backend": "^3.2.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",

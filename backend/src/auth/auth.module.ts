@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { DatabaseModule } from '../database/database.module';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt.guard';
+import { OptionalJwtAuthGuard } from './optional-jwt.guard';
 import { RolesGuard } from './roles.guard';
 import { PermissionsGuard } from './permissions.guard';
 
@@ -29,9 +30,16 @@ import { PermissionsGuard } from './permissions.guard';
     AuthService,
     JwtStrategy,
     JwtAuthGuard,
+    OptionalJwtAuthGuard,
     RolesGuard,
     PermissionsGuard,
   ],
-  exports: [JwtAuthGuard, RolesGuard, PermissionsGuard],
+  exports: [
+    AuthService,
+    JwtAuthGuard,
+    OptionalJwtAuthGuard,
+    RolesGuard,
+    PermissionsGuard,
+  ],
 })
 export class AuthModule {}

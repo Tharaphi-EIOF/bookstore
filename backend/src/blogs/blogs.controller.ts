@@ -17,11 +17,16 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { Permissions } from '../auth/permissions.decorator';
+import { PermissionsGuard } from '../auth/permissions.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt.guard';
 import { BlogsService } from './blogs.service';
 import { CreateBlogDto } from './dto/create-blog.dto';
 import { CreateBlogCommentDto } from './dto/create-blog-comment.dto';
 import { ListBlogsDto } from './dto/list-blogs.dto';
+import { ListBlogModerationDto } from './dto/list-blog-moderation.dto';
+import { ReviewBlogDto } from './dto/review-blog.dto';
+import { UpdateBlogPageSettingsDto } from './dto/update-blog-page-settings.dto';
 import { UpdateBlogDto } from './dto/update-blog.dto';
 
 @ApiTags('blogs')
@@ -52,11 +57,37 @@ export class BlogsController {
     return this.blogsService.getStaffPicks();
   }
 
+  @Get('page-settings')
+  @ApiOperation({ summary: 'Get public blog page header settings' })
+  getPageSettings() {
+    return this.blogsService.getPublicPageSettings();
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Patch('page-settings')
+  @Permissions('blogs.moderate')
+  @ApiOperation({ summary: 'Update public blog page header settings' })
+  updatePageSettings(
+    @Request() req: any,
+    @Body() dto: UpdateBlogPageSettingsDto,
+  ) {
+    return this.blogsService.updatePageSettings(req.user.sub, dto);
+  }
+
   @UseGuards(OptionalJwtAuthGuard)
   @Get('users/:userId')
   @ApiOperation({ summary: 'Get public user profile with published posts' })
   getUserProfile(@Param('userId') userId: string, @Request() req?: any) {
     return this.blogsService.getUserProfile(userId, req?.user?.sub);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('analytics/me')
+  @ApiOperation({ summary: 'Get analytics for the current author' })
+  getMyAnalytics(@Request() req: any) {
+    return this.blogsService.getMyAnalytics(req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -93,6 +124,41 @@ export class BlogsController {
   @ApiOperation({ summary: 'Publish own draft blog post' })
   publishPost(@Request() req: any, @Param('blogId') blogId: string) {
     return this.blogsService.publishBlog(req.user.sub, blogId);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('moderation/queue')
+  @Permissions('blogs.moderate')
+  @ApiOperation({ summary: 'List posts waiting for moderation review' })
+  moderationQueue(@Query() dto: ListBlogModerationDto) {
+    return this.blogsService.listModerationQueue(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Post(':blogId/moderation/approve')
+  @Permissions('blogs.moderate')
+  @ApiOperation({ summary: 'Approve a post after moderation review' })
+  approvePost(
+    @Request() req: any,
+    @Param('blogId') blogId: string,
+    @Body() dto: ReviewBlogDto,
+  ) {
+    return this.blogsService.reviewBlog(req.user.sub, blogId, 'APPROVE', dto);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Post(':blogId/moderation/reject')
+  @Permissions('blogs.moderate')
+  @ApiOperation({ summary: 'Reject a post after moderation review' })
+  rejectPost(
+    @Request() req: any,
+    @Param('blogId') blogId: string,
+    @Body() dto: ReviewBlogDto,
+  ) {
+    return this.blogsService.reviewBlog(req.user.sub, blogId, 'REJECT', dto);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -153,7 +219,11 @@ export class BlogsController {
   @Get(':blogId')
   @ApiOperation({ summary: 'Get a published blog post and comments' })
   getBlog(@Param('blogId') blogId: string, @Request() req?: any) {
-    return this.blogsService.getBlog(blogId, req?.user?.sub);
+    const visitorId =
+      typeof req?.headers?.['x-visitor-id'] === 'string'
+        ? req.headers['x-visitor-id']
+        : undefined;
+    return this.blogsService.getBlog(blogId, req?.user?.sub, visitorId);
   }
 
   @UseGuards(JwtAuthGuard)

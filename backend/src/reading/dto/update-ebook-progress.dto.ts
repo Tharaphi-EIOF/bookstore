@@ -1,5 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class UpdateEbookProgressDto {
   @ApiPropertyOptional({ example: 12, minimum: 1 })
@@ -19,4 +26,12 @@ export class UpdateEbookProgressDto {
   @Min(0)
   @Max(100)
   percent?: number;
+
+  @ApiPropertyOptional({
+    example: '2026-03-01T09:32:14.120Z',
+    description: 'Reader-open timestamp used to group autosaves into one session',
+  })
+  @IsOptional()
+  @IsDateString()
+  sessionStartAt?: string;
 }

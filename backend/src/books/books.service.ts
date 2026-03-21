@@ -4,11 +4,18 @@ import { CreateBookDto } from './dto/create-book.dto';
 import { UpdateBookDto } from './dto/update-book.dto';
 import { SearchBooksDto } from './dto/search-books.dto';
 import { Book } from '@prisma/client';
+import { existsSync, readFileSync } from 'fs';
+import { dirname, extname, posix, resolve } from 'path';
+import { inflateRawSync } from 'zlib';
 import {
   BookWithStockStatus,
   BookStockStatus,
 } from './types/book-with-stock-status.type';
-import { BOOK_GENRES_BY_CATEGORY } from './constants/book-taxonomy';
+
+const EBOOK_UPLOADS_DIR_CANDIDATES = [
+  resolve(process.cwd(), 'uploads', 'ebooks'),
+  resolve(process.cwd(), 'backend', 'uploads', 'ebooks'),
+];
 
 @Injectable()
 export class BooksService {
@@ -35,24 +42,6 @@ export class BooksService {
       if (!categoriesForValidation.length) {
         throw new BadRequestException(
           'Select at least one category before assigning genres.',
-        );
-      }
-
-      const allowedGenres = new Set(
-        categoriesForValidation.flatMap(
-          (category) =>
-            BOOK_GENRES_BY_CATEGORY[
-              category as keyof typeof BOOK_GENRES_BY_CATEGORY
-            ] ?? [],
-        ),
-      );
-      const mismatchedGenres = genresForValidation.filter(
-        (genre) => !allowedGenres.has(genre),
-      );
-
-      if (mismatchedGenres.length > 0) {
-        throw new BadRequestException(
-          `These genres do not match the selected categories: ${mismatchedGenres.join(', ')}.`,
         );
       }
     }
@@ -92,6 +81,259 @@ export class BooksService {
         throw new BadRequestException('ebookFilePath is required for digital books.');
       }
     }
+  }
+
+  private resolveEbookAbsolutePath(ebookFilePath: string) {
+    for (const baseDir of EBOOK_UPLOADS_DIR_CANDIDATES) {
+      const absolutePath = resolve(baseDir, ebookFilePath);
+      if (!absolutePath.startsWith(baseDir)) {
+        continue;
+      }
+      if (existsSync(absolutePath)) {
+        return absolutePath;
+      }
+    }
+
+    throw new NotFoundException(
+      `eBook file not found on server for path "${ebookFilePath}".`,
+    );
+  }
+
+  private detectEbookFormat(
+    ebookFilePath: string,
+    ebookFormat?: 'EPUB' | 'PDF',
+  ): 'EPUB' | 'PDF' {
+    if (ebookFormat) return ebookFormat;
+
+    const extension = extname(ebookFilePath).toLowerCase();
+    if (extension === '.pdf') return 'PDF';
+    if (extension === '.epub') return 'EPUB';
+
+    throw new BadRequestException(
+      'Unable to detect ebook format from file extension. Please specify ebookFormat.',
+    );
+  }
+
+  private countPdfPages(filePath: string): number {
+    const content = readFileSync(filePath, 'latin1');
+    const matches = content.match(/\/Type\s*\/Page\b/g);
+    return matches?.length ?? 0;
+  }
+
+  private findZipEndOfCentralDirectory(buffer: Buffer): number {
+    const minOffset = Math.max(0, buffer.length - 65557);
+    for (let i = buffer.length - 22; i >= minOffset; i -= 1) {
+      if (
+        buffer[i] === 0x50
+        && buffer[i + 1] === 0x4b
+        && buffer[i + 2] === 0x05
+        && buffer[i + 3] === 0x06
+      ) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  private parseZipEntries(buffer: Buffer) {
+    const eocdOffset = this.findZipEndOfCentralDirectory(buffer);
+    if (eocdOffset < 0) {
+      throw new BadRequestException('Invalid EPUB file: ZIP end record is missing.');
+    }
+
+    const centralDirectorySize = buffer.readUInt32LE(eocdOffset + 12);
+    const centralDirectoryOffset = buffer.readUInt32LE(eocdOffset + 16);
+    const centralDirectoryEnd = centralDirectoryOffset + centralDirectorySize;
+    const entries = new Map<
+      string,
+      { compressionMethod: number; compressedSize: number; localHeaderOffset: number }
+    >();
+
+    let pointer = centralDirectoryOffset;
+    while (pointer + 46 <= centralDirectoryEnd && pointer + 46 <= buffer.length) {
+      const signature = buffer.readUInt32LE(pointer);
+      if (signature !== 0x02014b50) break;
+
+      const compressionMethod = buffer.readUInt16LE(pointer + 10);
+      const compressedSize = buffer.readUInt32LE(pointer + 20);
+      const fileNameLength = buffer.readUInt16LE(pointer + 28);
+      const extraFieldLength = buffer.readUInt16LE(pointer + 30);
+      const fileCommentLength = buffer.readUInt16LE(pointer + 32);
+      const localHeaderOffset = buffer.readUInt32LE(pointer + 42);
+      const fileNameStart = pointer + 46;
+      const fileNameEnd = fileNameStart + fileNameLength;
+
+      if (fileNameEnd > buffer.length) break;
+
+      const fileName = buffer.toString('utf8', fileNameStart, fileNameEnd);
+      entries.set(fileName, {
+        compressionMethod,
+        compressedSize,
+        localHeaderOffset,
+      });
+
+      pointer = fileNameEnd + extraFieldLength + fileCommentLength;
+    }
+
+    return entries;
+  }
+
+  private readZipEntry(
+    archive: Buffer,
+    entry: { compressionMethod: number; compressedSize: number; localHeaderOffset: number },
+  ): Buffer {
+    const localOffset = entry.localHeaderOffset;
+    if (localOffset + 30 > archive.length) {
+      throw new BadRequestException('Invalid EPUB file: local header is out of bounds.');
+    }
+
+    const localSignature = archive.readUInt32LE(localOffset);
+    if (localSignature !== 0x04034b50) {
+      throw new BadRequestException('Invalid EPUB file: local header signature mismatch.');
+    }
+
+    const fileNameLength = archive.readUInt16LE(localOffset + 26);
+    const extraFieldLength = archive.readUInt16LE(localOffset + 28);
+    const dataStart = localOffset + 30 + fileNameLength + extraFieldLength;
+    const dataEnd = dataStart + entry.compressedSize;
+    if (dataEnd > archive.length) {
+      throw new BadRequestException('Invalid EPUB file: compressed entry exceeds archive size.');
+    }
+
+    const compressedData = archive.subarray(dataStart, dataEnd);
+    if (entry.compressionMethod === 0) {
+      return Buffer.from(compressedData);
+    }
+    if (entry.compressionMethod === 8) {
+      return inflateRawSync(compressedData);
+    }
+
+    throw new BadRequestException(
+      `Unsupported EPUB compression method: ${entry.compressionMethod}.`,
+    );
+  }
+
+  private resolveArchivePath(baseDir: string, target: string): string {
+    const normalizedBase = baseDir ? `${baseDir.replace(/\\/g, '/')}/` : '';
+    const resolved = posix.normalize(posix.join(normalizedBase, target));
+    return resolved.replace(/^\/+/, '');
+  }
+
+  private estimateEpubPages(filePath: string): number {
+    const archive = readFileSync(filePath);
+    const entries = this.parseZipEntries(archive);
+
+    const containerEntry = entries.get('META-INF/container.xml');
+    if (!containerEntry) {
+      throw new BadRequestException('Invalid EPUB file: missing META-INF/container.xml.');
+    }
+
+    const containerXml = this.readZipEntry(archive, containerEntry).toString('utf8');
+    const rootFileMatch = containerXml.match(/full-path="([^"]+)"/i);
+    if (!rootFileMatch?.[1]) {
+      throw new BadRequestException('Invalid EPUB file: missing OPF root file path.');
+    }
+
+    const opfPath = rootFileMatch[1];
+    const opfEntry = entries.get(opfPath);
+    if (!opfEntry) {
+      throw new BadRequestException(`Invalid EPUB file: missing package file "${opfPath}".`);
+    }
+
+    const opfXml = this.readZipEntry(archive, opfEntry).toString('utf8');
+    const opfDir = dirname(opfPath).replace(/\\/g, '/');
+
+    const manifest = new Map<string, string>();
+    const itemRegex = /<item\b([^>]+?)\/?>/gi;
+    let itemMatch: RegExpExecArray | null = itemRegex.exec(opfXml);
+    while (itemMatch) {
+      const attrs = itemMatch[1];
+      const id = attrs.match(/\bid="([^"]+)"/i)?.[1];
+      const href = attrs.match(/\bhref="([^"]+)"/i)?.[1];
+      if (id && href) {
+        manifest.set(id, this.resolveArchivePath(opfDir, href));
+      }
+      itemMatch = itemRegex.exec(opfXml);
+    }
+
+    const spineIds: string[] = [];
+    const itemRefRegex = /<itemref\b([^>]+?)\/?>/gi;
+    let itemRefMatch: RegExpExecArray | null = itemRefRegex.exec(opfXml);
+    while (itemRefMatch) {
+      const idRef = itemRefMatch[1].match(/\bidref="([^"]+)"/i)?.[1];
+      if (idRef) {
+        spineIds.push(idRef);
+      }
+      itemRefMatch = itemRefRegex.exec(opfXml);
+    }
+
+    let totalCharacters = 0;
+    for (const id of spineIds) {
+      const chapterPath = manifest.get(id);
+      if (!chapterPath) continue;
+      const chapterEntry = entries.get(chapterPath);
+      if (!chapterEntry) continue;
+      const chapterContent = this.readZipEntry(archive, chapterEntry).toString('utf8');
+      const cleanedText = chapterContent
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/\s+/g, ' ')
+        .trim();
+      totalCharacters += cleanedText.length;
+    }
+
+    if (totalCharacters <= 0) {
+      if (spineIds.length > 0) {
+        return Math.max(1, Math.round(spineIds.length * 8));
+      }
+      throw new BadRequestException(
+        'Unable to estimate EPUB pages from content. Please enter total pages manually.',
+      );
+    }
+
+    // Practical reading estimate for EPUB where fixed page count usually does not exist.
+    return Math.max(1, Math.round(totalCharacters / 1800));
+  }
+
+  async estimateEbookPages(dto: {
+    ebookFilePath?: string;
+    ebookFormat?: 'EPUB' | 'PDF';
+  }) {
+    const ebookFilePath = dto.ebookFilePath?.trim();
+    if (!ebookFilePath) {
+      throw new BadRequestException('ebookFilePath is required.');
+    }
+
+    const detectedFormat = this.detectEbookFormat(ebookFilePath, dto.ebookFormat);
+    const absolutePath = this.resolveEbookAbsolutePath(ebookFilePath);
+
+    if (detectedFormat === 'PDF') {
+      const totalPages = this.countPdfPages(absolutePath);
+      if (totalPages < 1) {
+        throw new BadRequestException(
+          'Unable to detect PDF pages automatically. Please enter total pages manually.',
+        );
+      }
+      return {
+        ebookFilePath,
+        ebookFormat: detectedFormat,
+        totalPages,
+        method: 'exact' as const,
+      };
+    }
+
+    const totalPages = this.estimateEpubPages(absolutePath);
+    return {
+      ebookFilePath,
+      ebookFormat: detectedFormat,
+      totalPages,
+      method: 'estimated' as const,
+    };
   }
 
   /**

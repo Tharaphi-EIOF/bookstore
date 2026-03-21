@@ -36,9 +36,23 @@ describe('ReadingService', () => {
               update: jest.fn(),
               delete: jest.fn(),
             },
+            ebookProgress: {
+              findUnique: jest.fn(),
+              upsert: jest.fn(),
+            },
+            userBookAccess: {
+              findUnique: jest.fn(),
+            },
+            orderItem: {
+              findFirst: jest.fn(),
+              findMany: jest.fn(),
+            },
             readingSession: {
               findMany: jest.fn(),
+              findFirst: jest.fn(),
               create: jest.fn(),
+              update: jest.fn(),
+              delete: jest.fn(),
             },
           },
         },
@@ -57,6 +71,7 @@ describe('ReadingService', () => {
 
     prisma.user.findUnique.mockResolvedValue({ id: userId });
     prisma.book.findUnique.mockResolvedValue({ id: bookId });
+    prisma.orderItem.findMany.mockResolvedValue([]);
     prisma.readingSession.create.mockResolvedValue({
       id: 'session-1',
       userId,
@@ -67,6 +82,18 @@ describe('ReadingService', () => {
       notes: null,
       createdAt: new Date(),
       updatedAt: new Date(),
+    });
+    prisma.readingSession.delete.mockResolvedValue({
+      id: 'session-1',
+      userId,
+      bookId,
+      readingItemId: 'ri-1',
+      pagesRead: 1,
+      sessionDate: new Date(),
+      notes: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      book: { id: bookId, title: 'Book A' },
     });
   });
 
@@ -326,6 +353,210 @@ describe('ReadingService', () => {
         include: { book: true },
       });
       expect(result.bookId).toBe(bookId);
+    });
+  });
+
+  describe('removeSession', () => {
+    it('deletes an existing session for the user', async () => {
+      prisma.readingSession.findFirst.mockResolvedValueOnce({ id: 'session-1' });
+
+      const result = await service.removeSession(userId, 'session-1');
+
+      expect(prisma.readingSession.delete).toHaveBeenCalledWith({
+        where: { id: 'session-1' },
+        include: { book: true },
+      });
+      expect(result.id).toBe('session-1');
+    });
+
+    it('throws when session does not exist', async () => {
+      prisma.readingSession.findFirst.mockResolvedValueOnce(null);
+
+      await expect(service.removeSession(userId, 'missing-session')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('updateEbookProgress', () => {
+    it('creates a reading session when ebook page advances', async () => {
+      const now = new Date();
+      prisma.book.findUnique.mockResolvedValue({
+        id: bookId,
+        title: 'Book A',
+        isDigital: true,
+        ebookFormat: 'EPUB',
+        ebookFilePath: 'book-a.epub',
+        totalPages: 300,
+      });
+      prisma.userBookAccess.findUnique.mockResolvedValue({
+        id: 'access-1',
+        userId,
+        bookId,
+      });
+      prisma.ebookProgress.findUnique.mockResolvedValue({
+        id: 'ep-1',
+        userId,
+        bookId,
+        page: 10,
+        locationCfi: 'cfi-10',
+        percent: 3.33,
+        createdAt: now,
+        updatedAt: now,
+      });
+      prisma.readingItem.findUnique.mockResolvedValue({
+        id: 'ri-1',
+        currentPage: 10,
+      });
+      prisma.ebookProgress.upsert.mockResolvedValue({
+        id: 'ep-1',
+        userId,
+        bookId,
+        page: 16,
+        locationCfi: 'cfi-10',
+        percent: 5.33,
+        createdAt: now,
+        updatedAt: now,
+      });
+      prisma.readingItem.upsert.mockResolvedValue({ id: 'ri-1' });
+      prisma.readingSession.findFirst.mockResolvedValue(null);
+      prisma.readingSession.create.mockResolvedValue({
+        id: 'session-ebook-1',
+        userId,
+        bookId,
+        readingItemId: 'ri-1',
+        pagesRead: 6,
+        sessionDate: new Date('2026-03-01T09:00:00.000Z'),
+      });
+
+      await service.updateEbookProgress(userId, bookId, {
+        page: 16,
+        sessionStartAt: '2026-03-01T09:00:00.000Z',
+      });
+
+      expect(prisma.readingSession.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId,
+          bookId,
+          readingItemId: 'ri-1',
+          pagesRead: 6,
+          sessionDate: new Date('2026-03-01T09:00:00.000Z'),
+        }),
+      });
+    });
+
+    it('does not create a reading session when ebook page does not advance', async () => {
+      const now = new Date();
+      prisma.book.findUnique.mockResolvedValue({
+        id: bookId,
+        title: 'Book A',
+        isDigital: true,
+        ebookFormat: 'EPUB',
+        ebookFilePath: 'book-a.epub',
+        totalPages: 300,
+      });
+      prisma.userBookAccess.findUnique.mockResolvedValue({
+        id: 'access-1',
+        userId,
+        bookId,
+      });
+      prisma.ebookProgress.findUnique.mockResolvedValue({
+        id: 'ep-1',
+        userId,
+        bookId,
+        page: 20,
+        locationCfi: 'cfi-20',
+        percent: 6.66,
+        createdAt: now,
+        updatedAt: now,
+      });
+      prisma.readingItem.findUnique.mockResolvedValue({
+        id: 'ri-1',
+        currentPage: 20,
+      });
+      prisma.ebookProgress.upsert.mockResolvedValue({
+        id: 'ep-1',
+        userId,
+        bookId,
+        page: 18,
+        locationCfi: 'cfi-20',
+        percent: 6,
+        createdAt: now,
+        updatedAt: now,
+      });
+      prisma.readingItem.upsert.mockResolvedValue({ id: 'ri-1' });
+
+      await service.updateEbookProgress(userId, bookId, {
+        page: 18,
+        sessionStartAt: '2026-03-01T09:00:00.000Z',
+      });
+
+      expect(prisma.readingSession.create).not.toHaveBeenCalled();
+    });
+
+    it('updates existing session for the same reader-open timestamp', async () => {
+      const now = new Date();
+      prisma.book.findUnique.mockResolvedValue({
+        id: bookId,
+        title: 'Book A',
+        isDigital: true,
+        ebookFormat: 'EPUB',
+        ebookFilePath: 'book-a.epub',
+        totalPages: 300,
+      });
+      prisma.userBookAccess.findUnique.mockResolvedValue({
+        id: 'access-1',
+        userId,
+        bookId,
+      });
+      prisma.ebookProgress.findUnique.mockResolvedValue({
+        id: 'ep-1',
+        userId,
+        bookId,
+        page: 16,
+        locationCfi: 'cfi-16',
+        percent: 5.33,
+        createdAt: now,
+        updatedAt: now,
+      });
+      prisma.readingItem.findUnique.mockResolvedValue({
+        id: 'ri-1',
+        currentPage: 16,
+      });
+      prisma.ebookProgress.upsert.mockResolvedValue({
+        id: 'ep-1',
+        userId,
+        bookId,
+        page: 21,
+        locationCfi: 'cfi-21',
+        percent: 7,
+        createdAt: now,
+        updatedAt: now,
+      });
+      prisma.readingItem.upsert.mockResolvedValue({ id: 'ri-1' });
+      prisma.readingSession.findFirst.mockResolvedValue({
+        id: 'session-ebook-1',
+        pagesRead: 6,
+      });
+      prisma.readingSession.update.mockResolvedValue({
+        id: 'session-ebook-1',
+        userId,
+        bookId,
+        readingItemId: 'ri-1',
+        pagesRead: 11,
+        sessionDate: new Date('2026-03-01T09:00:00.000Z'),
+      });
+
+      await service.updateEbookProgress(userId, bookId, {
+        page: 21,
+        sessionStartAt: '2026-03-01T09:00:00.000Z',
+      });
+
+      expect(prisma.readingSession.update).toHaveBeenCalledWith({
+        where: { id: 'session-ebook-1' },
+        data: { pagesRead: 11 },
+      });
+      expect(prisma.readingSession.create).not.toHaveBeenCalled();
     });
   });
 });

@@ -44,6 +44,27 @@ export class LibraryController {
     return this.libraryService.removeFromWishlist(req.user.sub, bookId);
   }
 
+  @Get('stock-alerts')
+  @ApiOperation({ summary: 'Get user back-in-stock alert subscriptions' })
+  getStockAlerts(@Request() req: any) {
+    return this.libraryService.listStockAlerts(req.user.sub);
+  }
+
+  @Post('stock-alerts/:bookId')
+  @ApiOperation({ summary: 'Subscribe to a back-in-stock alert for a book' })
+  subscribeToStockAlert(@Request() req: any, @Param('bookId') bookId: string) {
+    return this.libraryService.subscribeToStockAlert(req.user.sub, bookId);
+  }
+
+  @Delete('stock-alerts/:bookId')
+  @ApiOperation({ summary: 'Disable a back-in-stock alert subscription' })
+  unsubscribeFromStockAlert(
+    @Request() req: any,
+    @Param('bookId') bookId: string,
+  ) {
+    return this.libraryService.unsubscribeFromStockAlert(req.user.sub, bookId);
+  }
+
   @Get('favorites')
   @ApiOperation({ summary: 'Get user favorites' })
   @ApiResponse({ status: 200, description: 'Favorites retrieved successfully' })

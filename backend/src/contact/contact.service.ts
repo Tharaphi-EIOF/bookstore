@@ -201,6 +201,72 @@ export class ContactService {
     return anyActiveStaffDepartment?.departmentId;
   }
 
+  private buildInquiryMessageFromContact(dto: CreateContactDto) {
+    const metadata = dto.metadata ?? {};
+    const lines: string[] = [`Contact sender: ${dto.name} <${dto.email}>`];
+
+    if (dto.subject) {
+      lines.push(`Topic: ${dto.subject}`);
+    }
+
+    const stockFields = [
+      ['Book title', metadata.bookTitle],
+      ['Author', metadata.author],
+      ['ISBN', metadata.isbn],
+      ['Language', metadata.language],
+      ['Request reason', metadata.requestReason],
+      ['Preferred format', metadata.format],
+    ] as const;
+
+    const hasAnyStockField = stockFields.some(([, value]) =>
+      typeof value === 'string' ? value.trim().length > 0 : Boolean(value),
+    );
+
+    if (hasAnyStockField) {
+      lines.push('Stock request details:');
+      for (const [label, rawValue] of stockFields) {
+        if (typeof rawValue !== 'string') continue;
+        const value = rawValue.trim();
+        if (!value) continue;
+        lines.push(`${label}: ${value}`);
+      }
+    }
+
+    lines.push('', dto.message);
+    return lines.join('\n');
+  }
+
+  private inferInquiryType(dto: CreateContactDto): InquiryType {
+    if (dto.type !== 'support') {
+      return INQUIRY_TYPE_BY_CONTACT_TYPE[dto.type];
+    }
+
+    const metadata = dto.metadata ?? {};
+    const hasStockMetadata = [
+      metadata.bookTitle,
+      metadata.author,
+      metadata.isbn,
+      metadata.language,
+      metadata.requestReason,
+      metadata.format,
+    ].some(
+      (value) => typeof value === 'string' && value.trim().length > 0,
+    );
+
+    const normalizedSubject = dto.subject?.trim().toLowerCase() ?? '';
+    const normalizedMessage = dto.message.trim().toLowerCase();
+    const looksLikeStockRequest =
+      normalizedSubject.includes('book availability') ||
+      normalizedSubject.includes('stock inquiry') ||
+      normalizedMessage.includes('book availability request');
+
+    if (hasStockMetadata || looksLikeStockRequest) {
+      return InquiryType.stock;
+    }
+
+    return INQUIRY_TYPE_BY_CONTACT_TYPE[dto.type];
+  }
+
   async createMessage(dto: CreateContactDto) {
     const message = await this.prisma.contactMessage.create({
       data: {
@@ -245,7 +311,7 @@ export class ContactService {
       await this.prisma.$transaction(async (tx) => {
         const inquiry = await tx.inquiry.create({
           data: {
-            type: INQUIRY_TYPE_BY_CONTACT_TYPE[dto.type],
+            type: this.inferInquiryType(dto),
             departmentId: targetDepartmentId,
             status: InquiryStatus.OPEN,
             priority: InquiryPriority.MEDIUM,
@@ -259,7 +325,7 @@ export class ContactService {
             inquiryId: inquiry.id,
             senderId: inquiryCreator.id,
             senderType: 'USER',
-            message: `Contact sender: ${dto.name} <${dto.email}>\n\n${dto.message}`,
+            message: this.buildInquiryMessageFromContact(dto),
           },
         });
 

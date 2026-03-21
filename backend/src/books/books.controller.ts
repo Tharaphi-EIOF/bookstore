@@ -252,6 +252,57 @@ export class BooksController {
     return this.booksService.getLowStockBooks();
   }
 
+  @Get('ebook/estimate-pages')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Estimate total pages for an eBook file path (Admin only)',
+  })
+  @ApiQuery({
+    name: 'ebookFilePath',
+    required: true,
+    type: String,
+    description: 'Relative path under uploads/ebooks',
+  })
+  @ApiQuery({
+    name: 'ebookFormat',
+    required: false,
+    enum: ['EPUB', 'PDF'],
+    description: 'Optional explicit eBook format',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Page estimate calculated',
+    schema: {
+      type: 'object',
+      properties: {
+        ebookFilePath: { type: 'string' },
+        ebookFormat: { type: 'string', enum: ['EPUB', 'PDF'] },
+        totalPages: { type: 'number' },
+        method: { type: 'string', enum: ['exact', 'estimated'] },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - JWT token required',
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - invalid file path or unsupported file',
+  })
+  estimateEbookPages(
+    @Query('ebookFilePath') ebookFilePath: string,
+    @Query('ebookFormat') ebookFormat?: 'EPUB' | 'PDF',
+  ) {
+    return this.booksService.estimateEbookPages({
+      ebookFilePath,
+      ebookFormat,
+    });
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a book by ID' })
   @ApiResponse({

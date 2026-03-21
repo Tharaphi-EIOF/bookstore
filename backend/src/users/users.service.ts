@@ -23,6 +23,7 @@ export class UsersService {
         email: true,
         name: true,
         role: true,
+        stickerBalance: true,
         isActive: true,
         createdAt: true,
       },

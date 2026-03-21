@@ -2,13 +2,13 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
-export type BlogFeedTab = 'for_you' | 'trending' | 'latest' | 'following';
-export type BlogStatus = 'DRAFT' | 'PUBLISHED';
+export type BlogFeedTab = 'for_you' | 'trending' | 'latest' | 'following' | 'poems';
+export type BlogStatus = 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED';
 
 export class ListBlogsDto {
-  @ApiPropertyOptional({ enum: ['for_you', 'trending', 'latest', 'following'] })
+  @ApiPropertyOptional({ enum: ['for_you', 'trending', 'latest', 'following', 'poems'] })
   @IsOptional()
-  @IsIn(['for_you', 'trending', 'latest', 'following'])
+  @IsIn(['for_you', 'trending', 'latest', 'following', 'poems'])
   tab?: BlogFeedTab;
 
   @ApiPropertyOptional({ description: 'Filter by author id' })
@@ -29,9 +29,9 @@ export class ListBlogsDto {
   @IsString()
   tags?: string;
 
-  @ApiPropertyOptional({ enum: ['DRAFT', 'PUBLISHED'] })
+  @ApiPropertyOptional({ enum: ['DRAFT', 'PENDING_REVIEW', 'REJECTED', 'PUBLISHED'] })
   @IsOptional()
-  @IsIn(['DRAFT', 'PUBLISHED'])
+  @IsIn(['DRAFT', 'PENDING_REVIEW', 'REJECTED', 'PUBLISHED'])
   status?: BlogStatus;
 
   @ApiPropertyOptional({ minimum: 1, default: 1 })

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { BOOK_CATEGORIES, BOOK_GENRES } from '@/constants/bookTaxonomy'
+import { BOOK_CATEGORIES } from '@/constants/bookTaxonomy'
 
 const normalizeOpenLibraryCoverUrl = (value: unknown) => {
   if (typeof value !== 'string' || value.length === 0) return value
@@ -70,7 +70,7 @@ export const createBookSchema = z.object({
   description: z.string().max(500).optional(),
   coverImage: z.string().url('Must be a valid URL').optional().or(z.literal('')),
   categories: z.array(z.enum(BOOK_CATEGORIES)).min(1, 'At least one category is required'),
-  genres: z.array(z.enum(BOOK_GENRES as [string, ...string[]])).optional(),
+  genres: z.array(z.string().trim().min(1, 'Genre cannot be empty').max(80, 'Genre is too long')).optional(),
   isDigital: z.boolean().optional().default(false),
   ebookFormat: z.enum(['EPUB', 'PDF']).optional(),
   ebookFilePath: z.string().max(300).optional(),
@@ -166,11 +166,18 @@ export const userSchema = z.object({
   shortBio: z.string().nullable().optional(),
   about: z.string().nullable().optional(),
   coverImage: z.string().nullable().optional(),
+  location: z.string().nullable().optional(),
+  website: z.string().nullable().optional(),
+  timezone: z.string().optional().default('UTC'),
+  language: z.string().optional().default('en'),
   showEmail: z.boolean().optional().default(false),
   showFollowers: z.boolean().optional().default(true),
   showFollowing: z.boolean().optional().default(true),
   showFavorites: z.boolean().optional().default(false),
   showLikedPosts: z.boolean().optional().default(false),
+  emailUpdatesEnabled: z.boolean().optional().default(true),
+  followerAlertsEnabled: z.boolean().optional().default(true),
+  marketingEmailsEnabled: z.boolean().optional().default(false),
   supportEnabled: z.boolean().optional().default(false),
   supportUrl: z.string().nullable().optional(),
   supportQrImage: z.string().nullable().optional(),

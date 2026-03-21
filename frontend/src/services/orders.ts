@@ -35,6 +35,7 @@ export interface Order {
     name: string
     email: string
   }
+  returnRequests?: ReturnRequest[]
   orderItems: {
     id: string
     bookId: string
@@ -47,6 +48,59 @@ export interface Order {
       coverImage?: string | null
     }
   }[]
+}
+
+export interface SavedAddress {
+  id: string
+  userId: string
+  label: string
+  fullName: string
+  email: string
+  phone: string
+  address: string
+  city: string
+  state: string
+  zipCode: string
+  country: string
+  isDefault: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ReturnRequest {
+  id: string
+  orderId: string
+  userId: string
+  bookId?: string | null
+  status: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'RECEIVED' | 'REFUNDED' | 'CLOSED'
+  reason: string
+  details?: string | null
+  requestedQty: number
+  resolutionNote?: string | null
+  refundAmount?: number | string | null
+  reviewedAt?: string | null
+  createdAt: string
+  updatedAt: string
+  book?: {
+    id: string
+    title: string
+    author: string
+  } | null
+  user?: {
+    id: string
+    name: string
+    email: string
+  }
+  reviewedByUser?: {
+    id: string
+    name: string
+  } | null
+  order?: {
+    id: string
+    status: string
+    totalPrice: number | string
+    createdAt: string
+  }
 }
 
 export interface WarehouseDeliveryTask {
@@ -119,6 +173,15 @@ export const useOrders = () => {
   })
 }
 
+export const useSavedAddresses = () =>
+  useQuery({
+    queryKey: ['orders', 'addresses'],
+    queryFn: async (): Promise<SavedAddress[]> => {
+      const response = await api.get('/orders/addresses')
+      return response.data
+    },
+  })
+
 export const useAdminOrders = ({ enabled = true }: { enabled?: boolean } = {}) => {
   return useQuery({
     queryKey: ['admin-orders'],
@@ -130,6 +193,18 @@ export const useAdminOrders = ({ enabled = true }: { enabled?: boolean } = {}) =
     retry: false,
   })
 }
+
+export const useAdminReturnRequests = (status?: ReturnRequest['status']) =>
+  useQuery({
+    queryKey: ['admin-return-requests', status || 'all'],
+    queryFn: async (): Promise<ReturnRequest[]> => {
+      const response = await api.get('/orders/admin/returns', {
+        params: status ? { status } : undefined,
+      })
+      return response.data
+    },
+    retry: false,
+  })
 
 export const useOrder = (id: string) => {
   return useQuery({
@@ -172,6 +247,87 @@ export const useCreateOrder = () => {
   })
 }
 
+export const useCreateSavedAddress = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: Omit<SavedAddress, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
+      const response = await api.post('/orders/addresses', payload)
+      return response.data as SavedAddress
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders', 'addresses'] })
+    },
+  })
+}
+
+export const useUpdateSavedAddress = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<SavedAddress> }) => {
+      const response = await api.patch(`/orders/addresses/${id}`, data)
+      return response.data as SavedAddress
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders', 'addresses'] })
+    },
+  })
+}
+
+export const useDeleteSavedAddress = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await api.delete(`/orders/addresses/${id}`)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders', 'addresses'] })
+    },
+  })
+}
+
+export const useCreateReturnRequest = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      payload,
+    }: {
+      orderId: string
+      payload: { bookId?: string; reason: string; details?: string; requestedQty?: number }
+    }) => {
+      const response = await api.post(`/orders/${orderId}/returns`, payload)
+      return response.data as ReturnRequest
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-return-requests'] })
+    },
+  })
+}
+
+export const useReviewReturnRequest = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: string
+      payload: { status: ReturnRequest['status']; resolutionNote?: string; refundAmount?: number }
+    }) => {
+      const response = await api.patch(`/orders/admin/returns/${id}`, payload)
+      return response.data as ReturnRequest
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-return-requests'] })
+    },
+  })
+}
+
 export interface PromoValidationResult {
   valid: boolean
   code: string
@@ -179,7 +335,15 @@ export interface PromoValidationResult {
   message: string
   subtotal: number
   discountAmount: number
+  taxRate: number
+  taxAmount: number
+  totalBeforeTax: number
   total: number
+}
+
+export interface CheckoutConfig {
+  taxRate: number
+  taxRateFraction: number
 }
 
 export const useValidatePromo = () => {
@@ -188,6 +352,17 @@ export const useValidatePromo = () => {
       const response = await api.post('/orders/promotions/validate', { code })
       return response.data
     },
+  })
+}
+
+export const useCheckoutConfig = () => {
+  return useQuery({
+    queryKey: ['checkout-config'],
+    queryFn: async (): Promise<CheckoutConfig> => {
+      const response = await api.get('/orders/checkout-config')
+      return response.data
+    },
+    retry: false,
   })
 }
 

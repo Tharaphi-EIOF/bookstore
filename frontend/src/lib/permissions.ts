@@ -34,6 +34,9 @@ const ADMIN_PORTAL_PERMISSION_KEYS = new Set([
   'finance.purchase_request.review',
   'finance.purchase_request.approve',
   'finance.purchase_request.reject',
+  'blogs.moderate',
+  'blogs.feature',
+  'blogs.unpublish',
 ])
 
 const CS_PORTAL_PERMISSION_KEYS = new Set([

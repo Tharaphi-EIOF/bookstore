@@ -4,6 +4,7 @@ import { OrdersService } from './orders.service';
 import { PrismaService } from '../database/prisma.service';
 import { CartService } from '../cart/cart.service';
 import { StaffService } from '../staff/staff.service';
+import { PricingSettingsService } from '../pricing-settings/pricing-settings.service';
 import * as fc from 'fast-check';
 
 describe('OrdersService', () => {
@@ -11,6 +12,7 @@ describe('OrdersService', () => {
   let prismaService: any;
   let cartService: jest.Mocked<CartService>;
   let staffService: jest.Mocked<StaffService>;
+  let pricingSettingsService: jest.Mocked<PricingSettingsService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -51,6 +53,16 @@ describe('OrdersService', () => {
             completeTask: jest.fn(),
           },
         },
+        {
+          provide: PricingSettingsService,
+          useValue: {
+            getCheckoutConfig: jest.fn().mockResolvedValue({
+              taxRate: 0,
+              taxRateFraction: 0,
+            }),
+            computeTaxAmount: jest.fn().mockReturnValue(0),
+          },
+        },
       ],
     }).compile();
 
@@ -58,6 +70,7 @@ describe('OrdersService', () => {
     prismaService = module.get(PrismaService);
     cartService = module.get(CartService);
     staffService = module.get(StaffService);
+    pricingSettingsService = module.get(PricingSettingsService);
   });
 
   it('should be defined', () => {
@@ -213,6 +226,7 @@ describe('OrdersService', () => {
       expect(prismaService.order.findMany).toHaveBeenCalledWith({
         where: { userId },
         include: {
+          pickupStore: true,
           orderItems: {
             include: {
               book: true,
@@ -247,6 +261,7 @@ describe('OrdersService', () => {
           userId,
         },
         include: {
+          pickupStore: true,
           orderItems: {
             include: {
               book: true,

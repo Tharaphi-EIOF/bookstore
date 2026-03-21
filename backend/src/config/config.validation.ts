@@ -15,6 +15,17 @@ export const configValidationSchema = Joi.object({
     .default('24h')
     .description('JWT token expiration time'),
 
+  // Clerk Configuration
+  CLERK_SECRET_KEY: Joi.string()
+    .optional()
+    .description('Clerk secret key for backend token verification'),
+  CLERK_JWT_KEY: Joi.string()
+    .optional()
+    .description('Optional Clerk JWT public key for offline verification'),
+  CLERK_AUTHORIZED_PARTIES: Joi.string()
+    .optional()
+    .description('Comma-separated list of allowed frontend origins for Clerk tokens'),
+
   // Server Configuration
   PORT: Joi.number().port().default(3000).description('Server port number'),
   NODE_ENV: Joi.string()

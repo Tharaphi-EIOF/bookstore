@@ -6,10 +6,11 @@ type UseAutoRefreshOptions = {
   onRefresh: () => void
 }
 
-export const useAutoRefresh = ({ 
-  enabled = true, 
+export const useAutoRefresh = ({
+  // Small wrapper around setInterval so polling logic stays consistent across pages.
+  enabled = true,
   interval = 60000, // 60 seconds default
-  onRefresh 
+  onRefresh
 }: UseAutoRefreshOptions) => {
   const intervalRef = useRef<NodeJS.Timeout>()
 

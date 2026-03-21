@@ -119,6 +119,29 @@ enum NotificationType {
   inquiry_assigned
   inquiry_escalated
   inquiry_reply
+  stock_alert
+  return_update
+}
+
+enum ReturnRequestStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  RECEIVED
+  REFUNDED
+  CLOSED
+}
+
+enum StickerLedgerType {
+  ORDER_EARN
+  ADMIN_GRANT
+  REWARD_REDEEM
+}
+
+enum LoyaltyRewardType {
+  PERCENT_COUPON
+  FIXED_COUPON
+  FREE_EBOOK
 }
 
 enum InquiryType {
@@ -161,76 +184,145 @@ enum InquiryAuditAction {
 
 enum BlogPostStatus {
   DRAFT
+  PENDING_REVIEW
+  REJECTED
   PUBLISHED
 }
 
+enum BookLeadStatus {
+  NEW
+  REVIEWED
+  SOURCING
+  APPROVED_TO_BUY
+  ORDERED
+  CONVERTED_TO_BOOK
+  REJECTED
+}
+
+enum BookLeadSource {
+  USER_REQUEST
+  STAFF_IDEA
+  PARTNER_PITCH
+}
+
+enum PartnerDealStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+enum PartnerSettlementStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum InventoryOwnershipType {
+  OWNED
+  CONSIGNMENT
+}
+
+enum InventoryLocationType {
+  WAREHOUSE
+  STORE
+}
+
+enum InventoryLotSourceType {
+  PURCHASE_ORDER
+  PARTNER_CONSIGNMENT
+  STOCK_ADJUSTMENT
+  WAREHOUSE_TRANSFER
+  STORE_TRANSFER
+}
+
 model User {
-  id              String     @id @default(uuid())
-  email           String     @unique
-  password        String
+  id              String   @id @default(uuid())
+  clerkUserId     String?  @unique
+  email           String   @unique
+  password        String?
   name            String
-  role            Role       @default(USER)
-  avatarType      String?    @default("emoji")
-  avatarValue     String?    @default("avatar-1")
-  backgroundColor String?    @default("bg-slate-100")
+  role            Role     @default(USER)
+  avatarType      String?  @default("emoji")
+  avatarValue     String?  @default("avatar-1")
+  backgroundColor String?  @default("bg-slate-100")
   pronouns        String?
   shortBio        String?
   about           String?
   coverImage      String?
-  showEmail       Boolean    @default(false)
-  showFollowers   Boolean    @default(true)
-  showFollowing   Boolean    @default(true)
-  showFavorites   Boolean    @default(false)
-  showLikedPosts  Boolean    @default(false)
-  supportEnabled  Boolean    @default(false)
+  location        String?
+  website         String?
+  timezone        String   @default("UTC")
+  language        String   @default("en")
+  showEmail       Boolean  @default(false)
+  showFollowers   Boolean  @default(true)
+  showFollowing   Boolean  @default(true)
+  showFavorites   Boolean  @default(false)
+  showLikedPosts  Boolean  @default(false)
+  emailUpdatesEnabled   Boolean  @default(true)
+  followerAlertsEnabled Boolean  @default(true)
+  marketingEmailsEnabled Boolean @default(false)
+  supportEnabled  Boolean  @default(false)
   supportUrl      String?
   supportQrImage  String?
-  isActive        Boolean    @default(true)
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  
+  stickerBalance  Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
   // Relations
-  cart            CartItem[]
-  orders          Order[]
-  reviews         Review[]
-  wishlistItems   WishlistItem[]
-  favorites       FavoriteItem[]
-  readingItems    ReadingItem[]
-  readingSessions ReadingSession[]
-  bookAccesses    UserBookAccess[]
-  ebookProgress   EbookProgress[]
-  ebookBookmarks  EbookBookmark[]
-  ebookNotes      EbookNote[]
-  ebookHighlights EbookHighlight[]
-  blogComments    BlogComment[]
-  blogNotifications BlogNotification[]
-  notifications   Notification[]
-  createdInquiries Inquiry[]    @relation("InquiryCreatedBy")
-  inquiryAudits   InquiryAudit[] @relation("InquiryAuditPerformer")
+  cart                       CartItem[]
+  orders                     Order[]
+  reviews                    Review[]
+  wishlistItems              WishlistItem[]
+  favorites                  FavoriteItem[]
+  readingItems               ReadingItem[]
+  readingSessions            ReadingSession[]
+  bookAccesses               UserBookAccess[]
+  ebookProgress              EbookProgress[]
+  ebookBookmarks             EbookBookmark[]
+  ebookNotes                 EbookNote[]
+  ebookHighlights            EbookHighlight[]
+  blogComments               BlogComment[]
+  blogNotifications          BlogNotification[]
+  blogPostViews              BlogPostView[]
+  notifications              Notification[]
+  createdInquiries           Inquiry[]                   @relation("InquiryCreatedBy")
+  inquiryAudits              InquiryAudit[]              @relation("InquiryAuditPerformer")
   inquiryQuickReplyTemplates InquiryQuickReplyTemplate[] @relation("InquiryTemplateCreator")
-  blogLikes       BlogLike[]
-  authoredPosts   AuthorBlog[]      @relation("BlogAuthor")
-  postFollows     AuthorFollow[]    @relation("BlogFollower")
-  postFollowers   AuthorFollow[]    @relation("BlogFollowing")
-  staffProfile    StaffProfile?
-  staffAuditLogs  StaffAuditLog[] @relation("StaffAuditActor")
-  passwordResetTokens PasswordResetToken[]
-  createdPurchaseRequests PurchaseRequest[] @relation("PurchaseRequestCreator")
-  approvedPurchaseRequests PurchaseRequest[] @relation("PurchaseRequestApprover")
-  createdPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderCreator")
-  approvedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderApprover")
+  blogLikes                  BlogLike[]
+  authoredPosts              AuthorBlog[]                @relation("BlogAuthor")
+  postFollows                AuthorFollow[]              @relation("BlogFollower")
+  postFollowers              AuthorFollow[]              @relation("BlogFollowing")
+  staffProfile               StaffProfile?
+  staffAuditLogs             StaffAuditLog[]             @relation("StaffAuditActor")
+  passwordResetTokens        PasswordResetToken[]
+  createdPurchaseRequests    PurchaseRequest[]           @relation("PurchaseRequestCreator")
+  approvedPurchaseRequests   PurchaseRequest[]           @relation("PurchaseRequestApprover")
+  createdPurchaseOrders      PurchaseOrder[]             @relation("PurchaseOrderCreator")
+  approvedPurchaseOrders     PurchaseOrder[]             @relation("PurchaseOrderApprover")
+  createdPartnerDeals        PartnerConsignmentDeal[]
+  savedAddresses             SavedAddress[]
+  stockAlertSubscriptions    StockAlertSubscription[]
+  returnRequests             ReturnRequest[]             @relation("ReturnRequestCustomer")
+  reviewedReturnRequests     ReturnRequest[]             @relation("ReturnRequestReviewer")
+  stickerEntries             StickerLedger[]             @relation("StickerLedgerUser")
+  grantedStickerEntries      StickerLedger[]             @relation("StickerLedgerActor")
+  loyaltyRedemptions         LoyaltyRedemption[]
+  assignedPromotionCodes     PromotionCode[]             @relation("PromotionAssignedUser")
 
   @@index([email])
+  @@index([clerkUserId])
   @@index([isActive])
 }
 
 model PasswordResetToken {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
-  token     String   @unique
+  token     String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -267,13 +359,13 @@ model StaffProfile {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  department   Department   @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  manager      StaffProfile?  @relation("StaffManager", fields: [managerId], references: [id], onDelete: SetNull)
-  directReports StaffProfile[] @relation("StaffManager")
-  assignments  StaffAssignment[]
-  tasks        StaffTask[]
-  assignedInquiries Inquiry[] @relation("InquiryAssignedStaff")
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department           Department            @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  manager              StaffProfile?         @relation("StaffManager", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports        StaffProfile[]        @relation("StaffManager")
+  assignments          StaffAssignment[]
+  tasks                StaffTask[]
+  assignedInquiries    Inquiry[]             @relation("InquiryAssignedStaff")
   inquiryInternalNotes InquiryInternalNote[]
 
   @@index([departmentId])
@@ -290,7 +382,7 @@ model StaffRole {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  department  Department?         @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  department  Department?           @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   assignments StaffAssignment[]
   permissions StaffRolePermission[]
 
@@ -322,13 +414,13 @@ model StaffRolePermission {
 }
 
 model StaffAssignment {
-  id            String   @id @default(uuid())
-  staffId        String
-  roleId         String
-  effectiveFrom  DateTime @default(now())
-  effectiveTo    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String    @id @default(uuid())
+  staffId       String
+  roleId        String
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   staff StaffProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
   role  StaffRole    @relation(fields: [roleId], references: [id], onDelete: Cascade)
@@ -372,47 +464,53 @@ model StaffAuditLog {
 }
 
 model Book {
-  id          String      @id @default(uuid())
-  title       String
-  author      String
-  isbn        String      @unique
-  description String?
-  price       Decimal     @db.Decimal(10, 2)
-  ebookPrice  Decimal?    @db.Decimal(10, 2)
-  stock       Int         @default(0)
-  coverImage  String?     // URL to book cover image
-  categories  String[]    // Book categories/genres (array)
-  genres      String[]    @default([]) // Book genres (array)
-  rating      Float?      @default(0) // Average rating (0-5)
-  isDigital   Boolean     @default(false)
-  ebookFormat EbookFormat?
+  id            String       @id @default(uuid())
+  title         String
+  author        String
+  isbn          String       @unique
+  description   String?
+  price         Decimal      @db.Decimal(10, 2)
+  ebookPrice    Decimal?     @db.Decimal(10, 2)
+  stock         Int          @default(0)
+  coverImage    String? // URL to book cover image
+  categories    String[] // Book categories/genres (array)
+  genres        String[]     @default([]) // Book genres (array)
+  rating        Float?       @default(0) // Average rating (0-5)
+  isDigital     Boolean      @default(false)
+  ebookFormat   EbookFormat?
   ebookFilePath String?
-  totalPages  Int?
-  deletedAt   DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  totalPages    Int?
+  deletedAt     DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   // Relations
-  cartItems   CartItem[]
-  orderItems  OrderItem[]
-  reviews     Review[]
-  wishlistedBy WishlistItem[]
-  favoritedBy FavoriteItem[]
-  readingItems ReadingItem[]
-  readingSessions ReadingSession[]
-  userAccesses UserBookAccess[]
+  cartItems            CartItem[]
+  orderItems           OrderItem[]
+  reviews              Review[]
+  wishlistedBy         WishlistItem[]
+  favoritedBy          FavoriteItem[]
+  readingItems         ReadingItem[]
+  readingSessions      ReadingSession[]
+  userAccesses         UserBookAccess[]
   ebookProgressRecords EbookProgress[]
-  ebookBookmarks EbookBookmark[]
-  ebookNotes EbookNote[]
-  ebookHighlights EbookHighlight[]
-  warehouseStocks WarehouseStock[]
-  warehouseAlerts WarehouseAlert[]
-  transferItems WarehouseTransfer[]
-  purchaseRequests PurchaseRequest[]
-  purchaseOrderItems PurchaseOrderItem[]
-  blogReferences BlogPostBookReference[]
-  storeStocks StoreStock[]
-  storeTransfers StoreTransfer[]
+  ebookBookmarks       EbookBookmark[]
+  ebookNotes           EbookNote[]
+  ebookHighlights      EbookHighlight[]
+  warehouseStocks      WarehouseStock[]
+  warehouseAlerts      WarehouseAlert[]
+  transferItems        WarehouseTransfer[]
+  purchaseRequests     PurchaseRequest[]
+  purchaseOrderItems   PurchaseOrderItem[]
+  blogReferences       BlogPostBookReference[]
+  storeStocks          StoreStock[]
+  storeTransfers       StoreTransfer[]
+  partnerDeals         PartnerConsignmentDeal[]
+  inventoryLots        InventoryLot[]
+  stockAlertSubscriptions StockAlertSubscription[]
+  returnRequests          ReturnRequest[]
+  loyaltyRewards          LoyaltyReward[]
+  grantedRewardRedemptions LoyaltyRedemption[]
 
   @@index([title])
   @@index([author])
@@ -452,28 +550,29 @@ model Review {
   id        String   @id @default(uuid())
   userId    String
   bookId    String
-  rating    Int      // 1-5 stars
+  rating    Int // 1-5 stars
   comment   String?  @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   // One review per user per book
   // @@unique([userId, bookId])
   @@index([bookId])
   @@index([userId])
 }
+
 model CartItem {
-  id        String   @id @default(uuid())
+  id        String             @id @default(uuid())
   userId    String
   bookId    String
   format    BookPurchaseFormat @default(PHYSICAL)
-  quantity  Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  quantity  Int                @default(1)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -484,33 +583,35 @@ model CartItem {
 }
 
 model Order {
-  id         String      @id @default(uuid())
-  userId     String
-  status     OrderStatus @default(PENDING)
-  deliveryType DeliveryType @default(HOME_DELIVERY)
-  storeId    String?
-  subtotalPrice Decimal   @db.Decimal(10, 2)
-  discountAmount Decimal  @default(0) @db.Decimal(10, 2)
-  promoCode   String?
-  totalPrice Decimal     @db.Decimal(10, 2)
-  shippingFullName String?
-  shippingEmail    String?
-  shippingPhone    String?
-  shippingAddress  String?
-  shippingCity     String?
-  shippingState    String?
-  shippingZipCode  String?
-  shippingCountry  String?
-  paymentProvider  String?
+  id                String       @id @default(uuid())
+  userId            String
+  status            OrderStatus  @default(PENDING)
+  deliveryType      DeliveryType @default(HOME_DELIVERY)
+  storeId           String?
+  subtotalPrice     Decimal      @db.Decimal(10, 2)
+  discountAmount    Decimal      @default(0) @db.Decimal(10, 2)
+  promoCode         String?
+  totalPrice        Decimal      @db.Decimal(10, 2)
+  shippingFullName  String?
+  shippingEmail     String?
+  shippingPhone     String?
+  shippingAddress   String?
+  shippingCity      String?
+  shippingState     String?
+  shippingZipCode   String?
+  shippingCountry   String?
+  paymentProvider   String?
   paymentReceiptUrl String?
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   // Relations
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orderItems OrderItem[]
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderItems          OrderItem[]
   grantedBookAccesses UserBookAccess[]
-  pickupStore Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  pickupStore         Store?           @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  returnRequests      ReturnRequest[]
+  stickerEntries      StickerLedger[]
 
   @@index([userId])
   @@index([deliveryType])
@@ -521,9 +622,32 @@ model Order {
   @@index([shippingCountry])
 }
 
+model SavedAddress {
+  id          String   @id @default(uuid())
+  userId      String
+  label       String
+  fullName    String
+  email       String
+  phone       String
+  address     String
+  city        String
+  state       String
+  zipCode     String
+  country     String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isDefault])
+}
+
 model PromotionCode {
   id                String                @id @default(uuid())
   code              String                @unique
+  assignedUserId    String?
   name              String
   description       String?
   discountType      PromotionDiscountType
@@ -538,24 +662,154 @@ model PromotionCode {
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
+  userAssigned User? @relation("PromotionAssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  loyaltyRedemptions LoyaltyRedemption[]
+
   @@index([isActive])
   @@index([startsAt, endsAt])
+  @@index([assignedUserId])
+}
+
+model PricingSetting {
+  id                    String                @id
+  taxRate               Decimal               @default(10) @db.Decimal(5, 2)
+  vendorMarkupType      PromotionDiscountType @default(PERCENT)
+  vendorMarkupValue     Decimal               @default(0) @db.Decimal(10, 2)
+  applyPricingOnReceive Boolean               @default(true)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+}
+
+model BlogPageSetting {
+  id           String   @id
+  eyebrow      String   @default("Treasure House")
+  title        String   @default("Writing & Poems")
+  introLines   Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model OrderItem {
-  id        String  @id @default(uuid())
+  id        String             @id @default(uuid())
   orderId   String
   bookId    String
   format    BookPurchaseFormat @default(PHYSICAL)
   quantity  Int
-  price     Decimal @db.Decimal(10, 2)
-  createdAt DateTime @default(now())
+  price     Decimal            @db.Decimal(10, 2)
+  createdAt DateTime           @default(now())
 
   // Relations
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  book  Book  @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  order                Order                         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  book                 Book                          @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  inventoryAllocations OrderItemInventoryAllocation[]
 
   @@index([orderId])
+}
+
+model StockAlertSubscription {
+  id           String   @id @default(uuid())
+  userId       String
+  bookId       String
+  isActive     Boolean  @default(true)
+  notifiedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([bookId, isActive])
+}
+
+model ReturnRequest {
+  id              String              @id @default(uuid())
+  orderId         String
+  userId          String
+  bookId          String?
+  status          ReturnRequestStatus @default(REQUESTED)
+  reason          String
+  details         String?
+  requestedQty    Int                 @default(1)
+  resolutionNote  String?
+  refundAmount    Decimal?            @db.Decimal(10, 2)
+  reviewedByUserId String?
+  reviewedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  order          Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user           User   @relation("ReturnRequestCustomer", fields: [userId], references: [id], onDelete: Cascade)
+  book           Book?  @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  reviewedByUser User?  @relation("ReturnRequestReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@index([bookId])
+}
+
+model StickerLedger {
+  id              String            @id @default(uuid())
+  userId          String
+  actorUserId     String?
+  type            StickerLedgerType
+  delta           Int
+  note            String?
+  orderId         String?
+  redemptionId    String?
+  createdAt       DateTime          @default(now())
+
+  user        User               @relation("StickerLedgerUser", fields: [userId], references: [id], onDelete: Cascade)
+  actorUser   User?              @relation("StickerLedgerActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  order       Order?             @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  redemption  LoyaltyRedemption? @relation(fields: [redemptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([orderId])
+  @@index([type])
+}
+
+model LoyaltyReward {
+  id                String            @id @default(uuid())
+  name              String
+  description       String?
+  stickerCost       Int
+  rewardType        LoyaltyRewardType
+  discountValue     Decimal?          @db.Decimal(10, 2)
+  maxDiscountAmount Decimal?          @db.Decimal(10, 2)
+  rewardBookId      String?
+  isActive          Boolean           @default(true)
+  redemptionLimit   Int?
+  redeemedCount     Int               @default(0)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  rewardBook   Book?                @relation(fields: [rewardBookId], references: [id], onDelete: SetNull)
+  redemptions  LoyaltyRedemption[]
+
+  @@index([isActive])
+  @@index([rewardBookId])
+}
+
+model LoyaltyRedemption {
+  id               String   @id @default(uuid())
+  userId           String
+  rewardId         String
+  stickerCost      Int
+  generatedPromoId String?
+  grantedBookId    String?
+  createdAt        DateTime @default(now())
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward        LoyaltyReward @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  generatedPromo PromotionCode? @relation(fields: [generatedPromoId], references: [id], onDelete: SetNull)
+  grantedBook   Book?         @relation(fields: [grantedBookId], references: [id], onDelete: SetNull)
+  stickerEntries StickerLedger[]
+
+  @@index([userId, createdAt])
+  @@index([rewardId])
+  @@index([generatedPromoId])
 }
 
 model ContactMessage {
@@ -575,33 +829,33 @@ model ContactMessage {
 }
 
 model ContactNotification {
-  id          String   @id @default(uuid())
-  type        ContactType
-  recipient   String
-  subject     String
-  body        String
-  messageId   String?
-  createdAt   DateTime @default(now())
+  id        String      @id @default(uuid())
+  type      ContactType
+  recipient String
+  subject   String
+  body      String
+  messageId String?
+  createdAt DateTime    @default(now())
 
   @@index([type])
   @@index([createdAt])
 }
 
 model ReadingItem {
-  id            String        @id @default(uuid())
-  userId        String
-  bookId        String
-  status        ReadingStatus @default(TO_READ)
-  currentPage   Int           @default(0)
-  totalPages    Int?
+  id             String        @id @default(uuid())
+  userId         String
+  bookId         String
+  status         ReadingStatus @default(TO_READ)
+  currentPage    Int           @default(0)
+  totalPages     Int?
   dailyGoalPages Int?
-  startedAt     DateTime?
-  finishedAt    DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book     Book             @relation(fields: [bookId], references: [id], onDelete: Cascade)
   sessions ReadingSession[]
 
   @@unique([userId, bookId])
@@ -637,8 +891,8 @@ model UserBookAccess {
   sourceOrderId String?
   grantedAt     DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book        Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
   sourceOrder Order? @relation(fields: [sourceOrderId], references: [id], onDelete: SetNull)
 
   @@unique([userId, bookId])
@@ -700,16 +954,16 @@ model EbookNote {
 }
 
 model EbookHighlight {
-  id             String   @id @default(uuid())
-  userId         String
-  bookId         String
-  page           Int?
-  startCfi       String
-  endCfi         String?
-  textSnippet    String?
-  color          String   @default("yellow")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id          String   @id @default(uuid())
+  userId      String
+  bookId      String
+  page        Int?
+  startCfi    String
+  endCfi      String?
+  textSnippet String?
+  color       String   @default("yellow")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
@@ -719,29 +973,38 @@ model EbookHighlight {
 }
 
 model AuthorBlog {
-  id        String   @id @default(uuid())
-  authorId  String
-  title     String
-  subtitle  String?
-  content   String   @db.Text
-  coverImage String?
-  readingTime Int     @default(1)
-  status    BlogPostStatus @default(DRAFT)
-  viewsCount Int     @default(0)
-  likesCount Int     @default(0)
-  commentsCount Int  @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String         @id @default(uuid())
+  authorId      String
+  title         String
+  subtitle      String?
+  content       String         @db.Text
+  coverImage    String?
+  readingTime   Int            @default(1)
+  status        BlogPostStatus @default(DRAFT)
+  moderationReason String?     @db.Text
+  reviewedByUserId String?
+  reviewedAt      DateTime?
+  scheduledAt   DateTime?
+  viewsCount    Int            @default(0)
+  likesCount    Int            @default(0)
+  commentsCount Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  author User @relation("BlogAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  comments BlogComment[]
-  likes    BlogLike[]
-  tags     BlogPostTag[]
+  author         User                    @relation("BlogAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  comments       BlogComment[]
+  likes          BlogLike[]
+  viewEntries    BlogPostView[]
+  anonymousViewEntries BlogPostAnonymousView[]
+  tags           BlogPostTag[]
   bookReferences BlogPostBookReference[]
 
   @@index([authorId])
   @@index([createdAt])
   @@index([status])
+  @@index([reviewedByUserId])
+  @@index([reviewedAt])
+  @@index([scheduledAt])
   @@index([viewsCount])
   @@index([likesCount])
 }
@@ -769,7 +1032,7 @@ model BlogComment {
   updatedAt DateTime @updatedAt
 
   blog AuthorBlog @relation(fields: [blogId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([blogId])
   @@index([userId])
@@ -788,6 +1051,35 @@ model BlogLike {
   @@unique([postId, userId])
   @@index([postId])
   @@index([userId])
+  @@index([createdAt])
+}
+
+model BlogPostView {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post AuthorBlog @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model BlogPostAnonymousView {
+  id        String   @id @default(uuid())
+  postId    String
+  visitorId String
+  createdAt DateTime @default(now())
+
+  post AuthorBlog @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, visitorId])
+  @@index([postId])
+  @@index([visitorId])
   @@index([createdAt])
 }
 
@@ -824,13 +1116,13 @@ model BlogPostBookReference {
 }
 
 model BlogNotification {
-  id         String   @id @default(uuid())
-  userId     String
-  blogId     String
-  authorId   String
-  message    String
-  readAt     DateTime?
-  createdAt  DateTime @default(now())
+  id        String    @id @default(uuid())
+  userId    String
+  blogId    String
+  authorId  String
+  message   String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -858,20 +1150,20 @@ model Notification {
 }
 
 model Inquiry {
-  id                String         @id @default(uuid())
+  id                String          @id @default(uuid())
   type              InquiryType
   departmentId      String
-  status            InquiryStatus  @default(OPEN)
+  status            InquiryStatus   @default(OPEN)
   priority          InquiryPriority @default(MEDIUM)
   createdByUserId   String
   assignedToStaffId String?
   subject           String
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
-  department      Department   @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  createdBy       User         @relation("InquiryCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  assignedToStaff StaffProfile? @relation("InquiryAssignedStaff", fields: [assignedToStaffId], references: [id], onDelete: SetNull)
+  department      Department            @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  createdBy       User                  @relation("InquiryCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  assignedToStaff StaffProfile?         @relation("InquiryAssignedStaff", fields: [assignedToStaffId], references: [id], onDelete: SetNull)
   messages        InquiryMessage[]
   internalNotes   InquiryInternalNote[]
   audits          InquiryAudit[]
@@ -904,7 +1196,7 @@ model InquiryInternalNote {
   note      String
   createdAt DateTime @default(now())
 
-  inquiry Inquiry     @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  inquiry Inquiry      @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
   staff   StaffProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   @@index([inquiryId])
@@ -913,13 +1205,13 @@ model InquiryInternalNote {
 }
 
 model InquiryAudit {
-  id                String            @id @default(uuid())
+  id                String             @id @default(uuid())
   inquiryId         String
   action            InquiryAuditAction
   fromDepartmentId  String?
   toDepartmentId    String?
   performedByUserId String
-  createdAt         DateTime          @default(now())
+  createdAt         DateTime           @default(now())
 
   inquiry   Inquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
   performer User    @relation("InquiryAuditPerformer", fields: [performedByUserId], references: [id], onDelete: Restrict)
@@ -930,14 +1222,14 @@ model InquiryAudit {
 }
 
 model InquiryQuickReplyTemplate {
-  id              String      @id @default(uuid())
+  id              String       @id @default(uuid())
   title           String
   body            String
   type            InquiryType?
-  tags            String[]    @default([])
+  tags            String[]     @default([])
   createdByUserId String?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   createdBy User? @relation("InquiryTemplateCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
@@ -957,13 +1249,14 @@ model Warehouse {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  stocks         WarehouseStock[]
+  stocks            WarehouseStock[]
   outboundTransfers WarehouseTransfer[] @relation("OutboundWarehouse")
   inboundTransfers  WarehouseTransfer[] @relation("InboundWarehouse")
-  alerts         WarehouseAlert[]
-  purchaseRequests PurchaseRequest[]
-  purchaseOrders PurchaseOrder[]
-  storeTransfers StoreTransfer[]
+  alerts            WarehouseAlert[]
+  purchaseRequests  PurchaseRequest[]
+  purchaseOrders    PurchaseOrder[]
+  storeTransfers    StoreTransfer[]
+  inventoryLots     InventoryLot[]
 
   @@index([name])
   @@index([state])
@@ -971,22 +1264,23 @@ model Warehouse {
 }
 
 model Store {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String
-  code      String   @unique
+  code      String    @unique
   city      String
   state     String
   address   String?
   phone     String?
   email     String?
-  isActive  Boolean  @default(true)
+  isActive  Boolean   @default(true)
   deletedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  stocks StoreStock[]
-  orders Order[]
+  stocks           StoreStock[]
+  orders           Order[]
   inboundTransfers StoreTransfer[]
+  inventoryLots    InventoryLot[]
 
   @@index([name])
   @@index([city])
@@ -996,13 +1290,13 @@ model Store {
 }
 
 model StoreStock {
-  id               String   @id @default(uuid())
-  storeId          String
-  bookId           String
-  stock            Int      @default(0)
-  lowStockThreshold Int     @default(5)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String   @id @default(uuid())
+  storeId           String
+  bookId            String
+  stock             Int      @default(0)
+  lowStockThreshold Int      @default(5)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
   book  Book  @relation(fields: [bookId], references: [id], onDelete: Cascade)
@@ -1033,13 +1327,13 @@ model StoreTransfer {
 }
 
 model WarehouseStock {
-  id               String   @id @default(uuid())
-  warehouseId      String
-  bookId           String
-  stock            Int      @default(0)
-  lowStockThreshold Int     @default(5)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String   @id @default(uuid())
+  warehouseId       String
+  bookId            String
+  stock             Int      @default(0)
+  lowStockThreshold Int      @default(5)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
   book      Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
@@ -1050,14 +1344,14 @@ model WarehouseStock {
 }
 
 model WarehouseTransfer {
-  id               String   @id @default(uuid())
-  bookId           String
-  fromWarehouseId  String
-  toWarehouseId    String
-  quantity         Int
-  note             String?
-  createdByUserId  String?
-  createdAt        DateTime @default(now())
+  id              String   @id @default(uuid())
+  bookId          String
+  fromWarehouseId String
+  toWarehouseId   String
+  quantity        Int
+  note            String?
+  createdByUserId String?
+  createdAt       DateTime @default(now())
 
   book          Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
   fromWarehouse Warehouse @relation("OutboundWarehouse", fields: [fromWarehouseId], references: [id], onDelete: Cascade)
@@ -1104,10 +1398,10 @@ model PurchaseRequest {
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
-  book            Book      @relation(fields: [bookId], references: [id], onDelete: Restrict)
-  warehouse       Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
-  requestedByUser User      @relation("PurchaseRequestCreator", fields: [requestedByUserId], references: [id], onDelete: Restrict)
-  approvedByUser  User?     @relation("PurchaseRequestApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  book            Book           @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  warehouse       Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  requestedByUser User           @relation("PurchaseRequestCreator", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  approvedByUser  User?          @relation("PurchaseRequestApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
   purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
 
   @@index([status])
@@ -1117,20 +1411,103 @@ model PurchaseRequest {
   @@index([createdAt])
 }
 
+model BookLead {
+  id                String         @id @default(uuid())
+  title             String
+  author            String
+  note              String?
+  source            BookLeadSource @default(USER_REQUEST)
+  status            BookLeadStatus @default(NEW)
+  priority          Int            @default(3)
+  requestedByUserId String?
+  assignedToUserId  String?
+  convertedBookId   String?
+  procurementIsbn   String?
+  procurementPrice  Decimal?       @db.Decimal(10, 2)
+  procurementCategories String[]   @default([])
+  procurementGenres String[]       @default([])
+  procurementDescription String?
+  procurementCoverImage String?
+  procurementStock Int?
+  procurementWarehouseId String?
+  procurementQuantity Int?
+  procurementEstimatedCost Decimal? @db.Decimal(10, 2)
+  procurementReviewNote String?
+  deletedAt         DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  partnerDeal       PartnerConsignmentDeal?
+
+  @@index([status])
+  @@index([source])
+  @@index([priority])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model PartnerConsignmentDeal {
+  id              String             @id @default(uuid())
+  partnerName     String
+  partnerCompany  String?
+  partnerEmail    String?
+  leadId          String?            @unique
+  bookId          String?
+  status          PartnerDealStatus  @default(DRAFT)
+  revenueSharePct Decimal            @db.Decimal(5, 2)
+  effectiveFrom   DateTime           @default(now())
+  effectiveTo     DateTime?
+  termsNote       String?
+  createdByUserId String
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  lead        BookLead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  book        Book?               @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  createdBy   User                @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  settlements PartnerSettlement[]
+  inventoryLots InventoryLot[]
+
+  @@index([status])
+  @@index([partnerName])
+  @@index([bookId])
+  @@index([createdAt])
+}
+
+model PartnerSettlement {
+  id                 String                  @id @default(uuid())
+  dealId             String
+  periodStart        DateTime
+  periodEnd          DateTime
+  grossSalesAmount   Decimal                 @db.Decimal(12, 2)
+  partnerShareAmount Decimal                 @db.Decimal(12, 2)
+  status             PartnerSettlementStatus @default(PENDING)
+  paidAt             DateTime?
+  note               String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  deal PartnerConsignmentDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId])
+  @@index([status])
+  @@index([periodStart, periodEnd])
+}
+
 model Vendor {
-  id          String   @id @default(uuid())
-  code        String   @unique
+  id          String    @id @default(uuid())
+  code        String    @unique
   name        String
   contactName String?
   email       String?
   phone       String?
   address     String?
-  isActive    Boolean  @default(true)
+  isActive    Boolean   @default(true)
   deletedAt   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   purchaseOrders PurchaseOrder[]
+  inventoryLots  InventoryLot[]
 
   @@index([name])
   @@index([isActive])
@@ -1167,18 +1544,76 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id              String   @id @default(uuid())
-  purchaseOrderId String
-  bookId          String
-  orderedQuantity Int
-  receivedQuantity Int     @default(0)
-  unitCost        Decimal? @db.Decimal(10, 2)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String   @id @default(uuid())
+  purchaseOrderId  String
+  bookId           String
+  orderedQuantity  Int
+  receivedQuantity Int      @default(0)
+  unitCost         Decimal? @db.Decimal(10, 2)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   book          Book          @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  inventoryLots InventoryLot[]
 
   @@unique([purchaseOrderId, bookId])
   @@index([bookId])
+}
+
+model InventoryLot {
+  id                     String                @id @default(uuid())
+  bookId                 String
+  locationType           InventoryLocationType
+  warehouseId            String?
+  storeId                String?
+  ownershipType          InventoryOwnershipType
+  sourceType             InventoryLotSourceType
+  purchaseOrderItemId    String?
+  vendorId               String?
+  partnerDealId          String?
+  sourceLotId            String?
+  unitCost               Decimal?              @db.Decimal(10, 2)
+  revenueSharePct        Decimal?              @db.Decimal(5, 2)
+  receivedQuantity       Int
+  availableQuantity      Int
+  receivedAt             DateTime              @default(now())
+  note                   String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  book              Book                         @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  warehouse         Warehouse?                   @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  store             Store?                       @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  purchaseOrderItem PurchaseOrderItem?           @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull)
+  vendor            Vendor?                      @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  partnerDeal       PartnerConsignmentDeal?      @relation(fields: [partnerDealId], references: [id], onDelete: SetNull)
+  sourceLot         InventoryLot?                @relation("InventoryLotTransfers", fields: [sourceLotId], references: [id], onDelete: SetNull)
+  childLots         InventoryLot[]               @relation("InventoryLotTransfers")
+  orderAllocations  OrderItemInventoryAllocation[]
+
+  @@index([bookId, locationType, receivedAt])
+  @@index([warehouseId, bookId, receivedAt])
+  @@index([storeId, bookId, receivedAt])
+  @@index([ownershipType])
+  @@index([sourceType])
+  @@index([partnerDealId])
+  @@index([vendorId])
+}
+
+model OrderItemInventoryAllocation {
+  id                      String                @id @default(uuid())
+  orderItemId             String
+  inventoryLotId          String
+  quantity                Int
+  ownershipType           InventoryOwnershipType
+  unitCostAtAllocation    Decimal?              @db.Decimal(10, 2)
+  revenueSharePctSnapshot Decimal?              @db.Decimal(5, 2)
+  createdAt               DateTime              @default(now())
+
+  orderItem    OrderItem    @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  inventoryLot InventoryLot @relation(fields: [inventoryLotId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId])
+  @@index([inventoryLotId])
 }

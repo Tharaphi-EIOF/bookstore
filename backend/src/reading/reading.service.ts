@@ -410,6 +410,23 @@ export class ReadingService {
     });
   }
 
+  async removeSession(userId: string, sessionId: string) {
+    await this.ensureUser(userId);
+
+    const existing = await this.prisma.readingSession.findFirst({
+      where: { id: sessionId, userId },
+      select: { id: true },
+    });
+    if (!existing) {
+      throw new NotFoundException('Reading session not found');
+    }
+
+    return this.prisma.readingSession.delete({
+      where: { id: sessionId },
+      include: { book: true },
+    });
+  }
+
   async addBook(userId: string, bookId: string, dto: CreateReadingItemDto) {
     await this.ensureUser(userId);
     await this.ensureBook(bookId);
@@ -693,14 +710,28 @@ export class ReadingService {
     dto: UpdateEbookProgressDto,
   ) {
     const { book } = await this.ensureEbookAccess(userId, bookId);
-    const existing = await this.prisma.ebookProgress.findUnique({
-      where: {
-        userId_bookId: {
-          userId,
-          bookId,
+    const [existing, trackedReadingItem] = await Promise.all([
+      this.prisma.ebookProgress.findUnique({
+        where: {
+          userId_bookId: {
+            userId,
+            bookId,
+          },
         },
-      },
-    });
+      }),
+      this.prisma.readingItem.findUnique({
+        where: {
+          userId_bookId: {
+            userId,
+            bookId,
+          },
+        },
+        select: {
+          id: true,
+          currentPage: true,
+        },
+      }),
+    ]);
 
     const targetPage = dto.page ?? existing?.page ?? 1;
     if (book.totalPages && targetPage > book.totalPages) {
@@ -740,7 +771,7 @@ export class ReadingService {
       },
     });
 
-    await this.prisma.readingItem.upsert({
+    const readingItem = await this.prisma.readingItem.upsert({
       where: { userId_bookId: { userId, bookId } },
       update: {
         currentPage: targetPage,
@@ -764,7 +795,65 @@ export class ReadingService {
               ? ReadingStatus.READING
               : ReadingStatus.TO_READ,
       },
+      select: {
+        id: true,
+      },
     });
+
+    const baselinePage = existing?.page ?? trackedReadingItem?.currentPage ?? 0;
+    const pagesDelta = targetPage - baselinePage;
+    if (pagesDelta > 0) {
+      const sessionStartAt = dto.sessionStartAt
+        ? new Date(dto.sessionStartAt)
+        : null;
+      if (sessionStartAt && Number.isNaN(sessionStartAt.getTime())) {
+        throw new BadRequestException('Invalid session start date');
+      }
+
+      if (sessionStartAt) {
+        const activeSession = await this.prisma.readingSession.findFirst({
+          where: {
+            userId,
+            bookId,
+            readingItemId: readingItem.id,
+            sessionDate: sessionStartAt,
+          },
+          select: {
+            id: true,
+            pagesRead: true,
+          },
+        });
+
+        if (activeSession) {
+          await this.prisma.readingSession.update({
+            where: { id: activeSession.id },
+            data: {
+              pagesRead: activeSession.pagesRead + pagesDelta,
+            },
+          });
+        } else {
+          await this.prisma.readingSession.create({
+            data: {
+              userId,
+              bookId,
+              readingItemId: readingItem.id,
+              pagesRead: pagesDelta,
+              sessionDate: sessionStartAt,
+            },
+          });
+        }
+      } else {
+        await this.prisma.readingSession.create({
+          data: {
+            userId,
+            bookId,
+            readingItemId: readingItem.id,
+            pagesRead: pagesDelta,
+            sessionDate: new Date(),
+          },
+        });
+      }
+    }
 
     return progress;
   }

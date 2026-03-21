@@ -6,6 +6,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
+  // Keep auth checks declarative at the route layer instead of inside page components.
   const { isAuthenticated } = useAuthStore()
 
   if (!isAuthenticated) {

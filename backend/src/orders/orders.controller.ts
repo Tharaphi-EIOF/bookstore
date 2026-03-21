@@ -23,7 +23,11 @@ import { Permissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ValidatePromoDto } from './dto/validate-promo.dto';
-import { StaffTaskStatus } from '@prisma/client';
+import { ReturnRequestStatus, StaffTaskStatus } from '@prisma/client';
+import { CreateSavedAddressDto } from './dto/create-saved-address.dto';
+import { UpdateSavedAddressDto } from './dto/update-saved-address.dto';
+import { CreateReturnRequestDto } from './dto/create-return-request.dto';
+import { ReviewReturnRequestDto } from './dto/review-return-request.dto';
 
 @ApiTags('orders')
 @Controller('orders')
@@ -53,6 +57,13 @@ export class OrdersController {
     return this.ordersService.validatePromo(req.user.sub, dto.code);
   }
 
+  @Get('checkout-config')
+  @ApiOperation({ summary: 'Get checkout pricing configuration for current user session' })
+  @ApiResponse({ status: 200, description: 'Checkout configuration loaded' })
+  getCheckoutConfig() {
+    return this.ordersService.getCheckoutConfig();
+  }
+
   // =========================
   // USER: GET OWN ORDERS
   // =========================
@@ -61,6 +72,34 @@ export class OrdersController {
   @ApiResponse({ status: 200, description: 'Orders retrieved successfully' })
   findAll(@Request() req: any) {
     return this.ordersService.findAll(req.user.sub);
+  }
+
+  @Get('addresses')
+  @ApiOperation({ summary: 'List saved checkout addresses for current user' })
+  listSavedAddresses(@Request() req: any) {
+    return this.ordersService.listSavedAddresses(req.user.sub);
+  }
+
+  @Post('addresses')
+  @ApiOperation({ summary: 'Create a saved checkout address' })
+  createSavedAddress(@Request() req: any, @Body() dto: CreateSavedAddressDto) {
+    return this.ordersService.createSavedAddress(req.user.sub, dto);
+  }
+
+  @Patch('addresses/:id')
+  @ApiOperation({ summary: 'Update a saved checkout address' })
+  updateSavedAddress(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() dto: UpdateSavedAddressDto,
+  ) {
+    return this.ordersService.updateSavedAddress(req.user.sub, id, dto);
+  }
+
+  @Delete('addresses/:id')
+  @ApiOperation({ summary: 'Delete a saved checkout address' })
+  deleteSavedAddress(@Request() req: any, @Param('id') id: string) {
+    return this.ordersService.deleteSavedAddress(req.user.sub, id);
   }
 
   // =========================
@@ -77,6 +116,29 @@ export class OrdersController {
   @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
   findAllForAdmin(@Request() req: { user: { sub: string } }) {
     return this.ordersService.findAllForAdmin(req.user.sub);
+  }
+
+  @Get('admin/returns')
+  @UseGuards(PermissionsGuard)
+  @Permissions('finance.reports.view')
+  @ApiOperation({ summary: 'List return requests for admin review' })
+  listReturnRequestsForAdmin(
+    @Request() req: { user: { sub: string } },
+    @Query('status') status?: ReturnRequestStatus,
+  ) {
+    return this.ordersService.listReturnRequestsForAdmin(req.user.sub, status);
+  }
+
+  @Patch('admin/returns/:id')
+  @UseGuards(PermissionsGuard)
+  @Permissions('finance.reports.view')
+  @ApiOperation({ summary: 'Review or update a return request' })
+  reviewReturnRequest(
+    @Request() req: { user: { sub: string } },
+    @Param('id') id: string,
+    @Body() dto: ReviewReturnRequestDto,
+  ) {
+    return this.ordersService.reviewReturnRequest(id, dto, req.user.sub);
   }
 
   @Get('warehouse/delivery-tasks')
@@ -113,6 +175,16 @@ export class OrdersController {
   @ApiResponse({ status: 404, description: 'Order not found' })
   findOne(@Request() req: any, @Param('id') id: string) {
     return this.ordersService.findOne(req.user.sub, id);
+  }
+
+  @Post(':id/returns')
+  @ApiOperation({ summary: 'Create a return or refund request for an order' })
+  createReturnRequest(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() dto: CreateReturnRequestDto,
+  ) {
+    return this.ordersService.createReturnRequest(req.user.sub, id, dto);
   }
 
   // =========================

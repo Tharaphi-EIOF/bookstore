@@ -3,8 +3,9 @@ import { generateHTML, generateJSON } from '@tiptap/html'
 import StarterKit from '@tiptap/starter-kit'
 import TextAlign from '@tiptap/extension-text-align'
 import TiptapUnderline from '@tiptap/extension-underline'
-import TiptapImage from '@tiptap/extension-image'
 import TiptapLink from '@tiptap/extension-link'
+import { ResizableImage } from '@/lib/tiptap/resizable-image'
+import { InlineFontFamily } from '@/lib/tiptap/font-family'
 
 const tiptapExtensions = [
   StarterKit.configure({
@@ -15,12 +16,13 @@ const tiptapExtensions = [
     alignments: ['left', 'center', 'right'],
   }),
   TiptapUnderline,
-  TiptapImage.configure({ inline: false }),
+  ResizableImage.configure({ inline: false }),
   TiptapLink.configure({
     openOnClick: false,
     autolink: true,
     defaultProtocol: 'https',
   }),
+  InlineFontFamily,
 ]
 
 const escapeHtml = (value: string) =>
@@ -61,6 +63,7 @@ type TipTapContentPayload = {
   kind: 'TIPTAP_JSON'
   version: 1
   json: Record<string, unknown>
+  presentation?: StoredContentPresentation | null
 }
 
 type RichBlogContentPayload = {
@@ -68,6 +71,19 @@ type RichBlogContentPayload = {
   version: 1
   html: string
   text: string
+  presentation?: StoredContentPresentation | null
+}
+
+export type StoredContentPresentation = {
+  mode: 'BLOG' | 'POEM'
+  writerFont?: 'sans' | 'serif' | 'display' | 'mono' | 'cursive' | 'handwritten'
+  authorSignature?: string
+  paperTemplate?: 'vellum' | 'aged' | 'linen' | 'charcoal'
+  inkTone?: 'sepia' | 'midnight' | 'moss' | 'wine'
+  ruledLines?: boolean
+  deckleEdge?: boolean
+  grainIntensity?: number
+  canvasPreset?: 'moonlit' | 'ink' | 'sunset' | 'rain'
 }
 
 const normalizeContentInput = (content: unknown) => {
@@ -146,17 +162,15 @@ const sanitizeHtml = (html: string) => DOMPurify.sanitize(html, {
     'a', 'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'blockquote', 'pre', 'code',
     'h1', 'h2', 'ul', 'ol', 'li', 'img', 'span', 'div',
   ],
-  ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'class', 'style', 'loading'],
+  ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'class', 'style', 'loading', 'data-width'],
 })
 
 const normalizeRichHtml = (html: string) => {
   if (!html.trim()) return ''
-  const safeHtml = sanitizeHtml(html)
-
   const parser = new DOMParser()
-  const doc = parser.parseFromString(`<div data-rich-root="1">${safeHtml}</div>`, 'text/html')
+  const doc = parser.parseFromString(`<div data-rich-root="1">${html}</div>`, 'text/html')
   const root = doc.body.querySelector('[data-rich-root="1"]') as HTMLElement | null
-  if (!root) return safeHtml
+  if (!root) return sanitizeHtml(html)
 
   Array.from(root.childNodes).forEach((node) => {
     if (node.nodeType !== Node.TEXT_NODE) return
@@ -172,6 +186,24 @@ const normalizeRichHtml = (html: string) => {
 
   root.querySelectorAll('h1').forEach((el) => appendClasses(el, 'mt-10 mb-4 text-4xl font-semibold tracking-tight'))
   root.querySelectorAll('h2').forEach((el) => appendClasses(el, 'mt-8 mb-3 text-3xl font-semibold tracking-tight'))
+  root.querySelectorAll('p, h1, h2, blockquote').forEach((el) => {
+    const style = el.getAttribute('style') || ''
+    const normalized = style.toLowerCase().replace(/\s+/g, '')
+    if (normalized.includes('text-align:center')) {
+      appendClasses(el, 'text-center')
+      el.removeAttribute('style')
+      return
+    }
+    if (normalized.includes('text-align:right')) {
+      appendClasses(el, 'text-right')
+      el.removeAttribute('style')
+      return
+    }
+    if (normalized.includes('text-align:left')) {
+      appendClasses(el, 'text-left')
+      el.removeAttribute('style')
+    }
+  })
   root.querySelectorAll('blockquote').forEach((el) => appendClasses(el, 'my-5 border-l-4 border-slate-300 pl-4 italic text-slate-700 dark:border-slate-600 dark:text-slate-300'))
   root.querySelectorAll('pre').forEach((el) => appendClasses(el, 'my-5 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-7 dark:border-slate-700 dark:bg-slate-900/70'))
   root.querySelectorAll('p').forEach((el) => appendClasses(el, 'my-4'))
@@ -196,7 +228,7 @@ const normalizeRichHtml = (html: string) => {
   root.querySelectorAll('ol').forEach((el) => appendClasses(el, 'my-4 list-decimal pl-6'))
   root.querySelectorAll('li').forEach((el) => appendClasses(el, 'my-1'))
 
-  return root.innerHTML
+  return sanitizeHtml(root.innerHTML)
 }
 
 export const renderSimpleMarkdown = (content: string) => {
@@ -288,6 +320,52 @@ export const getStoredContentText = (content: unknown) => {
   return toPlainText(normalizeContentInput(content))
 }
 
+export const getStoredContentDisplayLines = (content: unknown) => {
+  const html = renderStoredContentHtml(content)
+  if (!html.trim()) return []
+
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(`<div data-display-root="1">${html}</div>`, 'text/html')
+  const root = doc.body.querySelector('[data-display-root="1"]') as HTMLElement | null
+  if (!root) return []
+
+  const lines: string[] = []
+
+  const readElementLines = (element: Element) => {
+    const clone = element.cloneNode(true) as HTMLElement
+    clone.querySelectorAll('br').forEach((breakElement) => {
+      breakElement.replaceWith('\n')
+    })
+
+    const text = (clone.textContent || '').replace(/\u00a0/g, ' ')
+    if (!text.trim()) {
+      lines.push('')
+      return
+    }
+
+    lines.push(...text.split(/\r?\n/).map((line) => line.trimEnd()))
+  }
+
+  const blockElements = Array.from(root.querySelectorAll('p, blockquote, h1, h2')).filter((element) => {
+    const parent = element.parentElement
+    return !parent || parent === root || !parent.matches('blockquote')
+  })
+
+  if (blockElements.length > 0) {
+    blockElements.forEach((element) => {
+      readElementLines(element)
+    })
+    return lines
+  }
+
+  const fallbackText = (root.textContent || '').replace(/\u00a0/g, ' ')
+  if (fallbackText.trim()) {
+    lines.push(...fallbackText.split(/\r?\n/).map((line) => line.trimEnd()))
+  }
+
+  return lines
+}
+
 export const renderStoredContentHtml = (content: unknown) => {
   const tiptap = parseTipTapContent(content)
   if (tiptap) {
@@ -309,6 +387,45 @@ export const editableHtmlFromStoredContent = (content: unknown) => {
   if (rich) return sanitizeHtml(rich.html).trim() || '<p><br></p>'
 
   return markdownToEditableHtml(normalizeContentInput(content))
+}
+
+export const getStoredContentPresentation = (
+  content: unknown,
+): StoredContentPresentation | null => {
+  const tiptap = parseTipTapContent(content)
+  if (tiptap?.presentation && typeof tiptap.presentation === 'object') {
+    return tiptap.presentation
+  }
+
+  const rich = parseRichBlogContent(content)
+  if (rich?.presentation && typeof rich.presentation === 'object') {
+    return rich.presentation
+  }
+
+  return null
+}
+
+export const withStoredContentPresentation = (
+  content: unknown,
+  presentation: StoredContentPresentation | null,
+) => {
+  const tiptap = parseTipTapContent(content)
+  if (tiptap) {
+    return JSON.stringify({
+      ...tiptap,
+      presentation,
+    } satisfies TipTapContentPayload)
+  }
+
+  const rich = parseRichBlogContent(content)
+  if (rich) {
+    return JSON.stringify({
+      ...rich,
+      presentation,
+    } satisfies RichBlogContentPayload)
+  }
+
+  return normalizeContentInput(content)
 }
 
 const compressBreaks = (value: string) =>

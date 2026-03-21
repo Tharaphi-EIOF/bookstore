@@ -13,7 +13,7 @@ import {
   IsIn,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { BOOK_CATEGORIES, BOOK_GENRES } from '../constants/book-taxonomy';
+import { BOOK_CATEGORIES } from '../constants/book-taxonomy';
 
 export class CreateBookDto {
   @ApiProperty({
@@ -44,7 +44,6 @@ export class CreateBookDto {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
-  @IsIn(BOOK_GENRES, { each: true })
   @IsString({ each: true })
   genres?: string[];
 

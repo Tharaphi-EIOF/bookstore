@@ -70,6 +70,47 @@ export class UpdateProfileDto {
   about?: string;
 
   @ApiPropertyOptional({
+    description: 'Public location shown on profile',
+    example: 'Yangon, Myanmar',
+    maxLength: 120,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  location?: string;
+
+  @ApiPropertyOptional({
+    description: 'Personal website or portfolio URL',
+    example: 'https://example.com',
+    maxLength: 2048,
+  })
+  @IsOptional()
+  @IsString()
+  @IsUrl({ require_protocol: true })
+  @MaxLength(2048)
+  website?: string;
+
+  @ApiPropertyOptional({
+    description: 'IANA timezone identifier used for scheduling and timestamps',
+    example: 'Asia/Yangon',
+    maxLength: 80,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  timezone?: string;
+
+  @ApiPropertyOptional({
+    description: 'Preferred language code for the account',
+    example: 'en',
+    maxLength: 20,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  language?: string;
+
+  @ApiPropertyOptional({
     description: 'Profile cover image URL',
     example: 'https://images.example.com/covers/user-1.jpg',
     maxLength: 2048,
@@ -118,6 +159,30 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsBoolean()
   showLikedPosts?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Receive reading or activity summary emails',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  emailUpdatesEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Receive alerts when someone follows you',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  followerAlertsEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Receive occasional product and marketing updates',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  marketingEmailsEnabled?: boolean;
 
   @ApiPropertyOptional({
     description: 'Enable author support modal on blog pages',

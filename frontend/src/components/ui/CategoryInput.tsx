@@ -8,6 +8,7 @@ interface CategoryInputProps {
     placeholder?: string
     suggestions?: readonly string[]
     datalistId?: string
+    restrictToSuggestions?: boolean
 }
 
 const DEFAULT_SUGGESTIONS = [
@@ -27,14 +28,32 @@ const CategoryInput = ({
     placeholder = 'Type and press Enter to add',
     suggestions = DEFAULT_SUGGESTIONS,
     datalistId = 'tag-suggestions',
+    restrictToSuggestions = false,
 }: CategoryInputProps) => {
     const [inputValue, setInputValue] = useState('')
+    const [localError, setLocalError] = useState('')
+
+    const resolveSuggestedValue = (raw: string) => {
+        const trimmed = raw.trim()
+        if (!trimmed) return ''
+        const matched = suggestions.find((item) => item.toLowerCase() === trimmed.toLowerCase())
+        return matched ?? ''
+    }
 
     const addCategory = (category: string) => {
         const trimmed = category.trim()
-        if (trimmed && !value.includes(trimmed)) {
-            onChange([...value, trimmed])
+        if (!trimmed) return
+
+        const resolved = restrictToSuggestions ? resolveSuggestedValue(trimmed) : trimmed
+        if (restrictToSuggestions && !resolved) {
+            setLocalError('Please choose one of the suggested values.')
+            return
+        }
+
+        if (!value.includes(resolved)) {
+            onChange([...value, resolved])
             setInputValue('')
+            setLocalError('')
         }
     }
 
@@ -81,7 +100,10 @@ const CategoryInput = ({
                 type="text"
                 list={datalistId}
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                onChange={(e) => {
+                    setInputValue(e.target.value)
+                    if (localError) setLocalError('')
+                }}
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -108,8 +130,8 @@ const CategoryInput = ({
                 ))}
             </div>
 
-            {error && (
-                <p className="mt-1 text-sm text-red-600">{error}</p>
+            {(error || localError) && (
+                <p className="mt-1 text-sm text-red-600">{error || localError}</p>
             )}
         </div>
     )

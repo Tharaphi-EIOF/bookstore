@@ -19,19 +19,27 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { InquiriesModule } from './inquiries/inquiries.module';
 import { PromotionsModule } from './promotions/promotions.module';
 import { StoresModule } from './stores/stores.module';
+import { PricingSettingsModule } from './pricing-settings/pricing-settings.module';
+import { BookLeadsModule } from './book-leads/book-leads.module';
+import { PartnerDealsModule } from './partner-deals/partner-deals.module';
+import { LoyaltyModule } from './loyalty/loyalty.module';
 
 import { join } from 'path';
 import { ServeStaticModule } from '@nestjs/serve-static';
 
 @Module({
   imports: [
+    // Uploaded media is served directly by Nest while API routes continue to live under `/api`.
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/uploads',
-      exclude: ['/api/(.*)'],
+      // path-to-regexp (used by current express/router stack) requires named wildcards
+      exclude: ['/api', '/api/*path'],
     }),
+    // Core platform modules first.
     ConfigModule,
     DatabaseModule,
+    // Auth and customer-facing commerce flows.
     AuthModule,
     BooksModule,
     UsersModule,
@@ -42,12 +50,17 @@ import { ServeStaticModule } from '@nestjs/serve-static';
     ContactModule,
     ReadingModule,
     BlogsModule,
+    // Internal operations and staff tooling.
     WarehousesModule,
     StaffModule,
     NotificationsModule,
     InquiriesModule,
     PromotionsModule,
     StoresModule,
+    PricingSettingsModule,
+    BookLeadsModule,
+    PartnerDealsModule,
+    LoyaltyModule,
   ],
   controllers: [AppController],
   providers: [AppService],

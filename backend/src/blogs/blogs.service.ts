@@ -1,21 +1,48 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { assertUserPermission } from '../auth/permission-resolution';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  BLOG_PROFILE_SELECT,
+  BLOG_REFERENCE_BOOK_SELECT,
+  BLOG_STATUS,
+  BLOG_USER_PROFILE_SELECT,
+} from './blogs.constants';
+import {
+  buildBlogListWhere,
+  getBlogListOrderBy,
+  parseTagFilters,
+} from './blogs.feed';
+import {
+  canManageAsAdmin,
+  estimateReadingTime,
+  normalizeTags,
+  uniqueIds,
+} from './blogs.helpers';
+import { mapBlog } from './blogs.mapper';
+import { toProfileResponse } from './blogs.profile';
+import { blogInclude, commentInclude } from './blogs.selectors';
+import {
+  buildCreateBlogData,
+  buildUpdateBlogData,
+  resolveScheduledAt,
+} from './blogs.write-data';
 import { CreateBlogCommentDto } from './dto/create-blog-comment.dto';
 import { CreateBlogDto } from './dto/create-blog.dto';
 import { ListBlogsDto } from './dto/list-blogs.dto';
+import { ListBlogModerationDto } from './dto/list-blog-moderation.dto';
+import { ReviewBlogDto } from './dto/review-blog.dto';
+import { UpdateBlogPageSettingsDto } from './dto/update-blog-page-settings.dto';
 import { UpdateBlogDto } from './dto/update-blog.dto';
 
-const BLOG_STATUS = {
-  DRAFT: 'DRAFT',
-  PUBLISHED: 'PUBLISHED',
-} as const;
+const BLOG_PAGE_SETTINGS_ROW_ID = 'global';
 
 @Injectable()
 export class BlogsService {
@@ -23,6 +50,49 @@ export class BlogsService {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  private normalizeIntroLines(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter(Boolean)
+      .slice(0, 12);
+  }
+
+  private async ensureBlogPageSettingsRow() {
+    const existing = await this.prisma.blogPageSetting.findUnique({
+      where: { id: BLOG_PAGE_SETTINGS_ROW_ID },
+    });
+
+    if (existing) return existing;
+
+    return this.prisma.blogPageSetting.create({
+      data: {
+        id: BLOG_PAGE_SETTINGS_ROW_ID,
+        introLines: [
+          'A living shelf for essays, reflections, and poems.',
+          'Writing that moves between thought and lyric.',
+          'Reviews, reading notes, poems, and pieces worth lingering in.',
+        ],
+      },
+    });
+  }
+
+  private mapBlogPageSettings(record: {
+    id: string;
+    eyebrow: string;
+    title: string;
+    introLines: unknown;
+    updatedAt: Date;
+  }) {
+    return {
+      id: record.id,
+      eyebrow: record.eyebrow,
+      title: record.title,
+      introLines: this.normalizeIntroLines(record.introLines),
+      updatedAt: record.updatedAt,
+    };
+  }
 
   private async ensureUser(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -32,24 +102,6 @@ export class BlogsService {
       );
     }
     return user;
-  }
-
-  private estimateReadingTime(content: string) {
-    const words = content.trim().split(/\s+/).filter(Boolean).length;
-    return Math.max(1, Math.ceil(words / 220));
-  }
-
-  private normalizeTags(tags?: string[]) {
-    if (!tags) return [];
-
-    const unique = new Set<string>();
-    for (const raw of tags) {
-      const normalized = raw.trim().toLowerCase();
-      if (!normalized) continue;
-      unique.add(normalized.slice(0, 40));
-    }
-
-    return Array.from(unique).slice(0, 8);
   }
 
   private async assertBooksExist(bookIds: string[]) {
@@ -66,62 +118,125 @@ export class BlogsService {
     }
   }
 
-  private blogInclude(currentUserId?: string): any {
+  async getMyAnalytics(userId: string) {
+    await this.ensureUser(userId);
+    const db = this.prisma as any;
+
+    const posts = await db.authorBlog.findMany({
+      where: { authorId: userId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        viewsCount: true,
+        likesCount: true,
+        commentsCount: true,
+        createdAt: true,
+        updatedAt: true,
+        scheduledAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    type AnalyticsPost = (typeof posts)[number];
+    const summary = posts.reduce(
+      (
+        acc: {
+          totalPosts: number;
+          totalViews: number;
+          totalLikes: number;
+          totalComments: number;
+          byStatus: Record<string, number>;
+        },
+        post: AnalyticsPost,
+      ) => {
+        acc.totalPosts += 1;
+        acc.totalViews += post.viewsCount ?? 0;
+        acc.totalLikes += post.likesCount ?? 0;
+        acc.totalComments += post.commentsCount ?? 0;
+        acc.byStatus[post.status] = (acc.byStatus[post.status] ?? 0) + 1;
+        return acc;
+      },
+      {
+        totalPosts: 0,
+        totalViews: 0,
+        totalLikes: 0,
+        totalComments: 0,
+        byStatus: {
+          DRAFT: 0,
+          PENDING_REVIEW: 0,
+          REJECTED: 0,
+          PUBLISHED: 0,
+        } as Record<string, number>,
+      },
+    );
+
+    const topPosts = [...posts]
+      .sort(
+        (a, b) =>
+          (b.viewsCount + b.likesCount * 3 + b.commentsCount * 4) -
+          (a.viewsCount + a.likesCount * 3 + a.commentsCount * 4),
+      )
+      .slice(0, 5);
+
+    const recentActivity = posts.slice(0, 6);
+
     return {
-      author: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          avatarType: true,
-          avatarValue: true,
-          backgroundColor: true,
-          pronouns: true,
-          shortBio: true,
-          about: true,
-          coverImage: true,
-          supportEnabled: true,
-          supportUrl: true,
-          supportQrImage: true,
-        },
-      },
-      tags: {
-        include: { tag: true },
-      },
-      bookReferences: {
-        include: {
-          book: {
-            select: {
-              id: true,
-              title: true,
-              author: true,
-              coverImage: true,
-            },
-          },
-        },
-      },
-      likes: currentUserId
-        ? {
-            where: { userId: currentUserId },
-            select: { id: true },
-            take: 1,
-          }
-        : false,
-      _count: {
-        select: {
-          comments: true,
-        },
-      },
+      summary,
+      topPosts,
+      recentActivity,
     };
   }
 
-  private mapBlog(item: any, currentUserId?: string) {
-    return {
-      ...item,
-      tags: (item.tags ?? []).map((t: any) => t.tag),
-      bookReferences: (item.bookReferences ?? []).map((r: any) => r.book),
-      isLikedByMe: currentUserId ? (item.likes ?? []).length > 0 : false,
-    };
+  async getPublicPageSettings() {
+    const settings = await this.ensureBlogPageSettingsRow();
+    return this.mapBlogPageSettings(settings);
+  }
+
+  async updatePageSettings(
+    actorUserId: string,
+    dto: UpdateBlogPageSettingsDto,
+  ) {
+    await assertUserPermission(this.prisma, actorUserId, 'blogs.moderate');
+    const current = await this.ensureBlogPageSettingsRow();
+
+    const nextIntroLines =
+      dto.introLines !== undefined
+        ? dto.introLines.map((line) => line.trim()).filter(Boolean).slice(0, 12)
+        : this.normalizeIntroLines(current.introLines);
+
+    const updated = await this.prisma.blogPageSetting.update({
+      where: { id: BLOG_PAGE_SETTINGS_ROW_ID },
+      data: {
+        ...(dto.eyebrow !== undefined ? { eyebrow: dto.eyebrow.trim() || current.eyebrow } : {}),
+        ...(dto.title !== undefined ? { title: dto.title.trim() || current.title } : {}),
+        ...(dto.introLines !== undefined ? { introLines: nextIntroLines } : {}),
+      },
+    });
+
+    return this.mapBlogPageSettings(updated);
+  }
+
+  private canManageBlogOrComment(
+    actorRole: string,
+    ownerId: string,
+    actorId: string,
+  ): boolean {
+    return ownerId === actorId || canManageAsAdmin(actorRole);
+  }
+
+  private resolveRequestedStatus(
+    requested: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED' | undefined,
+    isAdmin: boolean,
+  ): 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED' {
+    if (!requested) return BLOG_STATUS.DRAFT;
+    if (requested === BLOG_STATUS.PUBLISHED && !isAdmin) {
+      return BLOG_STATUS.PENDING_REVIEW;
+    }
+    if (requested === BLOG_STATUS.REJECTED && !isAdmin) {
+      throw new ForbiddenException('You cannot mark a post as rejected.');
+    }
+    return requested;
   }
 
   async listBlogs(dto: ListBlogsDto, currentUserId?: string) {
@@ -129,17 +244,8 @@ export class BlogsService {
     const page = dto.page ?? 1;
     const limit = dto.limit ?? 10;
     const skip = (page - 1) * limit;
-    const tab = dto.tab ?? 'for_you';
-    const tagFilters = Array.from(
-      new Set(
-        [
-          dto.tag?.trim(),
-          ...(dto.tags ?? '')
-            .split(',')
-            .map((name) => name.trim()),
-        ].filter((name): name is string => !!name),
-      ),
-    ).slice(0, 8);
+    const tab = dto.tab;
+    const tagFilters = parseTagFilters(dto);
 
     let followedAuthorIds: string[] = [];
     if (currentUserId) {
@@ -150,63 +256,13 @@ export class BlogsService {
       followedAuthorIds = follows.map((f: any) => f.authorId);
     }
 
-    const where: any = {
-      ...(dto.authorId ? { authorId: dto.authorId } : {}),
-      ...(dto.status
-        ? { status: dto.status }
-        : { status: BLOG_STATUS.PUBLISHED }),
-    };
-
-    if (tagFilters.length > 0) {
-      where.AND = [
-        ...(where.AND ?? []),
-        {
-          OR: tagFilters.map((name) => ({
-            tags: {
-              some: {
-                tag: {
-                  name: {
-                    equals: name,
-                    mode: 'insensitive',
-                  },
-                },
-              },
-            },
-          })),
-        },
-      ];
-    }
-
-    if (tab === 'following') {
-      where.authorId = followedAuthorIds.length
-        ? { in: followedAuthorIds }
-        : '__none__';
-    }
-
-    if (tab === 'for_you' && followedAuthorIds.length > 0) {
-      where.OR = [
-        { authorId: { in: followedAuthorIds } },
-        { likesCount: { gte: 8 } },
-        { commentsCount: { gte: 4 } },
-      ];
-    }
-
-    const orderBy: any[] =
-      tab === 'trending'
-        ? [
-            { likesCount: 'desc' },
-            { commentsCount: 'desc' },
-            { viewsCount: 'desc' },
-            { createdAt: 'desc' },
-          ]
-        : tab === 'for_you'
-          ? [{ createdAt: 'desc' }, { likesCount: 'desc' }]
-          : [{ createdAt: 'desc' }];
+    const where = buildBlogListWhere(dto, tagFilters, followedAuthorIds);
+    const orderBy = getBlogListOrderBy(tab);
 
     const [items, total] = await Promise.all([
       db.authorBlog.findMany({
         where,
-        include: this.blogInclude(currentUserId),
+        include: blogInclude(currentUserId),
         orderBy,
         skip,
         take: limit,
@@ -215,102 +271,146 @@ export class BlogsService {
     ]);
 
     return {
-      items: items.map((item: any) => this.mapBlog(item, currentUserId)),
+      items: items.map((item: any) => mapBlog(item, currentUserId)),
       total,
       page,
       limit,
     };
   }
 
-  async getBlog(blogId: string, currentUserId?: string) {
+  async getBlog(blogId: string, currentUserId?: string, visitorId?: string) {
     const db = this.prisma as any;
     const existing = await db.authorBlog.findUnique({ where: { id: blogId } });
     if (!existing) {
       throw new NotFoundException('Blog post not found');
     }
 
+    let canAccessUnpublished = false;
+    if (currentUserId) {
+      if (existing.authorId === currentUserId) {
+        canAccessUnpublished = true;
+      } else {
+        const viewer = await this.prisma.user.findUnique({
+          where: { id: currentUserId },
+          select: { role: true },
+        });
+        canAccessUnpublished = !!viewer && canManageAsAdmin(viewer.role);
+      }
+    }
+
     if (
-      existing.status === BLOG_STATUS.DRAFT &&
-      (!currentUserId || existing.authorId !== currentUserId)
+      existing.status !== BLOG_STATUS.PUBLISHED &&
+      !canAccessUnpublished
     ) {
       throw new NotFoundException('Blog post not found');
     }
 
-    const blog = await db.authorBlog.update({
-      where: { id: blogId },
-      data: { viewsCount: { increment: 1 } },
-      include: {
-        ...this.blogInclude(currentUserId),
-        comments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                avatarType: true,
-                avatarValue: true,
-                backgroundColor: true,
+    let shouldIncrementView = false;
+    if (existing.status === BLOG_STATUS.PUBLISHED) {
+      if (currentUserId) {
+        try {
+          await db.blogPostView.create({
+            data: {
+              postId: blogId,
+              userId: currentUserId,
+            },
+          });
+          shouldIncrementView = true;
+        } catch (error) {
+          // Same account already viewed this post before.
+          if (
+            !(
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2002'
+            )
+          ) {
+            throw error;
+          }
+        }
+      } else if (typeof visitorId === 'string' && visitorId.trim().length >= 12) {
+        const normalizedVisitorId = visitorId.trim().slice(0, 128);
+        try {
+          await db.blogPostAnonymousView.create({
+            data: {
+              postId: blogId,
+              visitorId: normalizedVisitorId,
+            },
+          });
+          shouldIncrementView = true;
+        } catch (error) {
+          // Same anonymous visitor already viewed this post before.
+          if (
+            !(
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2002'
+            )
+          ) {
+            throw error;
+          }
+        }
+      }
+    }
+
+    const blog =
+      shouldIncrementView
+        ? await db.authorBlog.update({
+            where: { id: blogId },
+            data: { viewsCount: { increment: 1 } },
+            include: {
+              ...blogInclude(currentUserId),
+              comments: {
+                include: commentInclude(),
+                orderBy: { createdAt: 'desc' },
               },
             },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-    });
+          })
+        : await db.authorBlog.findUnique({
+            where: { id: blogId },
+            include: {
+              ...blogInclude(currentUserId),
+              comments: {
+                include: commentInclude(),
+                orderBy: { createdAt: 'desc' },
+              },
+            },
+          });
 
-    return this.mapBlog(blog, currentUserId);
+    if (!blog) {
+      throw new NotFoundException('Blog post not found');
+    }
+
+    return mapBlog(blog, currentUserId);
   }
 
   async createBlog(userId: string, dto: CreateBlogDto) {
     const db = this.prisma as any;
     const user = await this.ensureUser(userId);
-    const tags = this.normalizeTags(dto.tags);
-    const bookIds = Array.from(new Set(dto.bookIds ?? []));
+    const tags = normalizeTags(dto.tags);
+    const bookIds = uniqueIds(dto.bookIds);
     await this.assertBooksExist(bookIds);
 
-    const readingTime =
-      dto.readingTime ?? this.estimateReadingTime(dto.content);
-    const status = dto.status ?? BLOG_STATUS.DRAFT;
+    const readingTime = dto.readingTime ?? estimateReadingTime(dto.content);
+    const status = this.resolveRequestedStatus(dto.status, canManageAsAdmin(user.role));
+    const scheduledAt = resolveScheduledAt(status, dto.scheduledAt);
 
     const blog = await db.authorBlog.create({
-      data: {
-        authorId: userId,
-        title: dto.title.trim(),
-        subtitle: dto.subtitle?.trim() || null,
-        content: dto.content,
-        coverImage: dto.coverImage?.trim() || null,
+      data: buildCreateBlogData(
+        userId,
+        dto,
+        tags,
+        bookIds,
         readingTime,
         status,
-        tags: tags.length
-          ? {
-              create: tags.map((name) => ({
-                tag: {
-                  connectOrCreate: {
-                    where: { name },
-                    create: { name },
-                  },
-                },
-              })),
-            }
-          : undefined,
-        bookReferences: bookIds.length
-          ? {
-              create: bookIds.map((bookId) => ({
-                book: {
-                  connect: { id: bookId },
-                },
-              })),
-            }
-          : undefined,
-      },
-      include: this.blogInclude(userId),
+        scheduledAt,
+      ),
+      include: blogInclude(userId),
     });
 
     if (status === BLOG_STATUS.PUBLISHED) {
       await this.notifyFollowersOnPublish(user, blog.id, blog.title);
     }
 
-    return this.mapBlog(blog, userId);
+    return mapBlog(blog, userId);
   }
 
   async updateBlog(userId: string, blogId: string, dto: UpdateBlogDto) {
@@ -322,23 +422,21 @@ export class BlogsService {
       throw new NotFoundException('Blog post not found');
     }
 
-    if (
-      existing.authorId !== userId &&
-      user.role !== Role.ADMIN &&
-      String(user.role) !== 'SUPER_ADMIN'
-    ) {
+    if (!this.canManageBlogOrComment(user.role, existing.authorId, userId)) {
       throw new ForbiddenException('You can only edit your own blog posts');
     }
 
-    const nextTags = dto.tags ? this.normalizeTags(dto.tags) : undefined;
-    const nextBookIds = dto.bookIds
-      ? Array.from(new Set(dto.bookIds))
-      : undefined;
+    const nextTags = dto.tags ? normalizeTags(dto.tags) : undefined;
+    const nextBookIds = dto.bookIds ? uniqueIds(dto.bookIds) : undefined;
     if (nextBookIds) {
       await this.assertBooksExist(nextBookIds);
     }
 
     const statusBefore = existing.status;
+    const nextStatus =
+      dto.status === undefined
+        ? undefined
+        : this.resolveRequestedStatus(dto.status, canManageAsAdmin(user.role));
 
     const updated = await db.$transaction(async (tx: any) => {
       if (nextTags) {
@@ -354,47 +452,24 @@ export class BlogsService {
       return tx.authorBlog.update({
         where: { id: blogId },
         data: {
-          ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
-          ...(dto.subtitle !== undefined
-            ? { subtitle: dto.subtitle?.trim() || null }
-            : {}),
-          ...(dto.content !== undefined ? { content: dto.content } : {}),
-          ...(dto.coverImage !== undefined
-            ? { coverImage: dto.coverImage?.trim() || null }
-            : {}),
-          ...(dto.status !== undefined ? { status: dto.status } : {}),
-          ...(dto.readingTime !== undefined
-            ? { readingTime: dto.readingTime }
-            : dto.content !== undefined
-              ? { readingTime: this.estimateReadingTime(dto.content) }
-              : {}),
-          ...(nextTags
+          ...buildUpdateBlogData(
+            { ...dto, status: nextStatus },
+            nextTags,
+            nextBookIds,
+          ),
+          ...(nextStatus === BLOG_STATUS.DRAFT ||
+          nextStatus === BLOG_STATUS.PENDING_REVIEW
             ? {
-                tags: {
-                  create: nextTags.map((name) => ({
-                    tag: {
-                      connectOrCreate: {
-                        where: { name },
-                        create: { name },
-                      },
-                    },
-                  })),
-                },
+                moderationReason: null,
+                reviewedByUserId: null,
+                reviewedAt: null,
               }
             : {}),
-          ...(nextBookIds
-            ? {
-                bookReferences: {
-                  create: nextBookIds.map((bookId) => ({
-                    book: {
-                      connect: { id: bookId },
-                    },
-                  })),
-                },
-              }
+          ...(dto.readingTime === undefined && dto.content !== undefined
+            ? { readingTime: estimateReadingTime(dto.content) }
             : {}),
         },
-        include: this.blogInclude(userId),
+        include: blogInclude(userId),
       });
     });
 
@@ -405,11 +480,97 @@ export class BlogsService {
       await this.notifyFollowersOnPublish(user, updated.id, updated.title);
     }
 
-    return this.mapBlog(updated, userId);
+    return mapBlog(updated, userId);
   }
 
   async publishBlog(userId: string, blogId: string) {
-    return this.updateBlog(userId, blogId, { status: BLOG_STATUS.PUBLISHED });
+    const user = await this.ensureUser(userId);
+    const status = canManageAsAdmin(user.role)
+      ? BLOG_STATUS.PUBLISHED
+      : BLOG_STATUS.PENDING_REVIEW;
+    return this.updateBlog(userId, blogId, { status });
+  }
+
+  async listModerationQueue(dto: ListBlogModerationDto) {
+    const db = this.prisma as any;
+    const page = dto.page ?? 1;
+    const limit = dto.limit ?? 20;
+    const skip = (page - 1) * limit;
+    const where: any = {
+      status: dto.status ?? BLOG_STATUS.PENDING_REVIEW,
+    };
+
+    if (dto.q?.trim()) {
+      const keyword = dto.q.trim();
+      where.OR = [
+        { title: { contains: keyword, mode: 'insensitive' } },
+        { author: { name: { contains: keyword, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      db.authorBlog.findMany({
+        where,
+        include: blogInclude(),
+        orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+        skip,
+        take: limit,
+      }),
+      db.authorBlog.count({ where }),
+    ]);
+
+    return {
+      items: items.map((item: any) => mapBlog(item)),
+      total,
+      page,
+      limit,
+    };
+  }
+
+  async reviewBlog(
+    reviewerUserId: string,
+    blogId: string,
+    action: 'APPROVE' | 'REJECT',
+    dto: ReviewBlogDto,
+  ) {
+    const db = this.prisma as any;
+    await this.ensureUser(reviewerUserId);
+
+    const existing = await db.authorBlog.findUnique({
+      where: { id: blogId },
+      include: { author: true },
+    });
+    if (!existing) {
+      throw new NotFoundException('Blog post not found');
+    }
+
+    const reason = dto.reason?.trim() || null;
+    if (action === 'REJECT' && !reason) {
+      throw new BadRequestException('Rejection reason is required.');
+    }
+
+    const status = action === 'APPROVE' ? BLOG_STATUS.PUBLISHED : BLOG_STATUS.REJECTED;
+    const updated = await db.authorBlog.update({
+      where: { id: blogId },
+      data: {
+        status,
+        moderationReason: reason,
+        reviewedByUserId: reviewerUserId,
+        reviewedAt: new Date(),
+        ...(status === BLOG_STATUS.PUBLISHED ? { scheduledAt: null } : {}),
+      },
+      include: blogInclude(),
+    });
+
+    if (status === BLOG_STATUS.PUBLISHED) {
+      await this.notifyFollowersOnPublish(
+        { id: existing.author.id, name: existing.author.name },
+        updated.id,
+        updated.title,
+      );
+    }
+
+    return mapBlog(updated);
   }
 
   async deleteBlog(userId: string, blogId: string) {
@@ -422,11 +583,7 @@ export class BlogsService {
       throw new NotFoundException('Blog post not found');
     }
 
-    if (
-      existing.authorId !== userId &&
-      user.role !== Role.ADMIN &&
-      String(user.role) !== 'SUPER_ADMIN'
-    ) {
+    if (!this.canManageBlogOrComment(user.role, existing.authorId, userId)) {
       throw new ForbiddenException('You can only delete your own blog posts');
     }
 
@@ -530,21 +687,7 @@ export class BlogsService {
       },
       include: {
         author: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatarType: true,
-            avatarValue: true,
-            backgroundColor: true,
-            pronouns: true,
-            shortBio: true,
-            about: true,
-            coverImage: true,
-            supportEnabled: true,
-            supportUrl: true,
-            supportQrImage: true,
-          },
+          select: BLOG_USER_PROFILE_SELECT,
         },
       },
     });
@@ -583,21 +726,7 @@ export class BlogsService {
       where: { followerId: userId },
       include: {
         author: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatarType: true,
-            avatarValue: true,
-            backgroundColor: true,
-            pronouns: true,
-            shortBio: true,
-            about: true,
-            coverImage: true,
-            supportEnabled: true,
-            supportUrl: true,
-            supportQrImage: true,
-          },
+          select: BLOG_USER_PROFILE_SELECT,
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -608,28 +737,7 @@ export class BlogsService {
     const db = this.prisma as any;
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
-        avatarType: true,
-        avatarValue: true,
-        backgroundColor: true,
-        pronouns: true,
-        shortBio: true,
-        about: true,
-        coverImage: true,
-        showEmail: true,
-        showFollowers: true,
-        showFollowing: true,
-        showFavorites: true,
-        showLikedPosts: true,
-        supportEnabled: true,
-        supportUrl: true,
-        supportQrImage: true,
-        role: true,
-      },
+      select: BLOG_PROFILE_SELECT,
     });
 
     if (!user) {
@@ -644,82 +752,65 @@ export class BlogsService {
 
     const [posts, followers, following, isFollowing, favorites, likedPosts] =
       await Promise.all([
-      db.authorBlog.findMany({
-        where: { authorId: userId, status: BLOG_STATUS.PUBLISHED },
-        include: this.blogInclude(currentUserId),
-        orderBy: { createdAt: 'desc' },
-      }),
-      db.authorFollow.count({ where: { authorId: userId } }),
-      db.authorFollow.count({ where: { followerId: userId } }),
-      currentUserId
-        ? db.authorFollow.findUnique({
-            where: {
-              followerId_authorId: {
-                followerId: currentUserId,
-                authorId: userId,
-              },
-            },
-          })
-        : null,
-      canViewFavorites
-        ? this.prisma.favoriteItem.findMany({
-            where: { userId },
-            include: {
-              book: {
-                select: {
-                  id: true,
-                  title: true,
-                  author: true,
-                  coverImage: true,
+        db.authorBlog.findMany({
+          where: { authorId: userId, status: BLOG_STATUS.PUBLISHED },
+          include: blogInclude(currentUserId),
+          orderBy: { createdAt: 'desc' },
+        }),
+        db.authorFollow.count({ where: { authorId: userId } }),
+        db.authorFollow.count({ where: { followerId: userId } }),
+        currentUserId
+          ? db.authorFollow.findUnique({
+              where: {
+                followerId_authorId: {
+                  followerId: currentUserId,
+                  authorId: userId,
                 },
               },
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 24,
-          })
-        : [],
-      canViewLikedPosts
-        ? db.blogLike.findMany({
-            where: {
-              userId,
-              post: { status: BLOG_STATUS.PUBLISHED },
-            },
-            include: {
-              post: {
-                include: this.blogInclude(currentUserId),
+            })
+          : null,
+        canViewFavorites
+          ? this.prisma.favoriteItem.findMany({
+              where: { userId },
+              include: {
+                book: {
+                  select: BLOG_REFERENCE_BOOK_SELECT,
+                },
               },
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 24,
-          })
-        : [],
-    ]);
+              orderBy: { createdAt: 'desc' },
+              take: 24,
+            })
+          : [],
+        canViewLikedPosts
+          ? db.blogLike.findMany({
+              where: {
+                userId,
+                post: { status: BLOG_STATUS.PUBLISHED },
+              },
+              include: {
+                post: {
+                  include: blogInclude(currentUserId),
+                },
+              },
+              orderBy: { createdAt: 'desc' },
+              take: 24,
+            })
+          : [],
+      ]);
 
-    return {
-      user: {
-        ...user,
-        email: isOwner || user.showEmail ? user.email : null,
-      },
-      visibility: {
-        showEmail: user.showEmail,
-        showFollowers: user.showFollowers,
-        showFollowing: user.showFollowing,
-        showFavorites: user.showFavorites,
-        showLikedPosts: user.showLikedPosts,
-        supportEnabled: user.supportEnabled,
-      },
-      stats: {
-        followers: canViewFollowers ? followers : null,
-        following: canViewFollowing ? following : null,
-        posts: posts.length,
-      },
-      isFollowing: !!isFollowing,
-      posts: posts.map((item: any) => this.mapBlog(item, currentUserId)),
+    return toProfileResponse(
+      user,
+      isOwner,
+      posts,
       favorites,
-      likedPosts: likedPosts.map((item: any) =>
-        this.mapBlog(item.post, currentUserId),
-      ),
-    };
+      likedPosts,
+      followers,
+      following,
+      canViewFollowers,
+      canViewFollowing,
+      isFollowing,
+      currentUserId,
+    );
   }
 
   async listComments(blogId: string) {
@@ -731,17 +822,7 @@ export class BlogsService {
 
     return db.blogComment.findMany({
       where: { blogId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            avatarType: true,
-            avatarValue: true,
-            backgroundColor: true,
-          },
-        },
-      },
+      include: commentInclude(),
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -762,17 +843,7 @@ export class BlogsService {
           userId,
           content: dto.content,
         },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              avatarType: true,
-              avatarValue: true,
-              backgroundColor: true,
-            },
-          },
-        },
+        include: commentInclude(),
       });
 
       await tx.authorBlog.update({
@@ -811,9 +882,7 @@ export class BlogsService {
 
     if (
       comment.userId !== userId &&
-      comment.blog.authorId !== userId &&
-      user.role !== Role.ADMIN &&
-      String(user.role) !== 'SUPER_ADMIN'
+      !this.canManageBlogOrComment(user.role, comment.blog.authorId, userId)
     ) {
       throw new ForbiddenException('You can only delete your own comments');
     }
@@ -862,7 +931,7 @@ export class BlogsService {
     const db = this.prisma as any;
     const picks = await db.authorBlog.findMany({
       where: { status: BLOG_STATUS.PUBLISHED },
-      include: this.blogInclude(),
+      include: blogInclude(),
       orderBy: [
         { likesCount: 'desc' },
         { commentsCount: 'desc' },
@@ -872,7 +941,7 @@ export class BlogsService {
       take: 4,
     });
 
-    return picks.map((item: any) => this.mapBlog(item));
+    return picks.map((item: any) => mapBlog(item));
   }
 
   private async notifyFollowersOnPublish(

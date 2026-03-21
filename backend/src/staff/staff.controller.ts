@@ -228,6 +228,27 @@ export class StaffAdminController {
     );
   }
 
+  @Get('audit-logs')
+  @Permissions('admin.permission.manage')
+  @ApiOperation({ summary: 'List admin audit logs across staff and operational actions' })
+  listAuditLogs(
+    @Req() req: AuthenticatedRequest,
+    @Query('actorUserId') actorUserId?: string,
+    @Query('resource') resource?: string,
+    @Query('action') action?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.staffService.listAuditLogs(
+      {
+        actorUserId,
+        resource,
+        action,
+        limit: limit ? Number(limit) : undefined,
+      },
+      req.user.sub,
+    );
+  }
+
   @Post('tasks')
   @Permissions('hr.performance.manage')
   @ApiOperation({ summary: 'Create staff task' })

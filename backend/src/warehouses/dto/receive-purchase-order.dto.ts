@@ -5,6 +5,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -23,6 +24,17 @@ class ReceivePurchaseOrderItemDto {
   @IsInt()
   @Min(1)
   receivedQuantity!: number;
+
+  @ApiProperty({
+    required: false,
+    example: 19.99,
+    description: 'Optional final retail price to apply to the received book.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  finalRetailPrice?: number;
 }
 
 export class ReceivePurchaseOrderDto {

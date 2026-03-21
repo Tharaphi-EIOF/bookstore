@@ -8,7 +8,6 @@ type LibraryListsStore = {
 }
 
 const STORAGE_KEY = 'treasurehouse.library.customLists.v1'
-const DEFAULT_LISTS = ['Recs 5 stars', 'Weekend Reads', 'Reference Shelf']
 
 const dedupe = (values: string[]) => Array.from(new Set(values))
 
@@ -47,15 +46,7 @@ const writeStore = (store: LibraryListsStore) => {
 }
 
 export const getLibraryLists = (): LibraryList[] => {
-  const store = readStore()
-  const names = new Set(store.lists.map((item) => item.name.toLowerCase()))
-  const seeded = [...store.lists]
-  for (const defaultName of DEFAULT_LISTS) {
-    if (!names.has(defaultName.toLowerCase())) {
-      seeded.push({ name: defaultName, bookIds: [] })
-    }
-  }
-  return seeded
+  return readStore().lists
 }
 
 export const getListsForBook = (bookId: string): string[] => {
@@ -73,6 +64,15 @@ export const createLibraryList = (name: string): LibraryList[] => {
     store.lists.push({ name: trimmed, bookIds: [] })
     writeStore(store)
   }
+  return getLibraryLists()
+}
+
+export const deleteLibraryList = (name: string): LibraryList[] => {
+  const trimmed = name.trim()
+  if (!trimmed) return getLibraryLists()
+  const store = readStore()
+  store.lists = store.lists.filter((item) => item.name.toLowerCase() !== trimmed.toLowerCase())
+  writeStore(store)
   return getLibraryLists()
 }
 
