@@ -34,5 +34,12 @@ jobs:
       - name: Test Backend
         run: npm run test:backend
 
-      - name: Build Application
-        run: npm run build
+      - name: Build Backend
+        run: npm run build:backend
+
+      - name: Type-check Frontend
+        run: npx tsc --noEmit
+        working-directory: frontend
+
+      - name: Build Frontend
+        run: npm run build:frontend
