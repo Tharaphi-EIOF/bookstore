@@ -6,11 +6,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../auth/permissions.decorator';
@@ -22,7 +18,9 @@ import { PricingSettingsService } from './pricing-settings.service';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiBearerAuth('JWT-auth')
 export class PricingSettingsController {
-  constructor(private readonly pricingSettingsService: PricingSettingsService) {}
+  constructor(
+    private readonly pricingSettingsService: PricingSettingsService,
+  ) {}
 
   @Get()
   @Permissions('finance.payout.manage')
@@ -33,7 +31,9 @@ export class PricingSettingsController {
 
   @Patch()
   @Permissions('finance.payout.manage')
-  @ApiOperation({ summary: 'Update global pricing settings (Super Admin only)' })
+  @ApiOperation({
+    summary: 'Update global pricing settings (Super Admin only)',
+  })
   updateSettings(
     @Request() req: { user: { sub: string } },
     @Body() dto: UpdatePricingSettingsDto,

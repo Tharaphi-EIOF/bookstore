@@ -6,6 +6,7 @@ import TiptapUnderline from '@tiptap/extension-underline'
 import TiptapLink from '@tiptap/extension-link'
 import { ResizableImage } from '@/lib/tiptap/resizable-image'
 import { InlineFontFamily } from '@/lib/tiptap/font-family'
+import { resolveMediaUrl } from '@/lib/media'
 
 const tiptapExtensions = [
   StarterKit.configure({
@@ -36,8 +37,8 @@ const escapeHtml = (value: string) =>
 const renderInline = (raw: string) => {
   let text = escapeHtml(raw)
 
-  text = text.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, (_m: string, alt: string, url: string) => {
-    return `<img src="${url}" alt="${alt}" class="my-4 w-full rounded-xl border border-slate-200 dark:border-slate-700" />`
+  text = text.replace(/!\[([^\]]*)\]\(((?:https?:\/\/)?[^\s)]+)\)/g, (_m: string, alt: string, url: string) => {
+    return `<img src="${resolveMediaUrl(url)}" alt="${alt}" class="my-4 w-full rounded-xl border border-slate-200 dark:border-slate-700" />`
   })
   text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m: string, label: string, url: string) => {
     return `<a href="${url}" target="_blank" rel="noreferrer" class="font-medium text-primary-700 underline decoration-primary-400/60 underline-offset-2 dark:text-amber-300 dark:decoration-amber-300/60">${label}</a>`
@@ -216,8 +217,22 @@ const normalizeRichHtml = (html: string) => {
     }
   })
   root.querySelectorAll('img').forEach((el) => {
-    appendClasses(el, 'my-4 w-full rounded-xl border border-slate-200 dark:border-slate-700')
+    const width = el.getAttribute('data-width') || '100%'
+    
+    // Create a wrapper span that mirrors the editor's NodeViewWrapper appearance
+    const wrapper = doc.createElement('span')
+    wrapper.setAttribute('class', 'relative my-4 inline-block max-w-full align-bottom')
+    wrapper.setAttribute('style', `width: ${width};`)
+    
+    // Setup the image
+    appendClasses(el, 'block h-auto w-full rounded-xl border border-slate-200 object-contain dark:border-slate-700')
     el.setAttribute('loading', 'lazy')
+    const src = el.getAttribute('src')
+    if (src) el.setAttribute('src', resolveMediaUrl(src))
+    
+    // Replace the image with the wrapper, then insert the image into the wrapper
+    el.parentNode?.replaceChild(wrapper, el)
+    wrapper.appendChild(el)
   })
   root.querySelectorAll('a').forEach((el) => {
     appendClasses(el, 'font-medium text-primary-700 underline decoration-primary-400/70 underline-offset-2 dark:text-amber-300 dark:decoration-amber-300/60')
@@ -426,6 +441,16 @@ export const withStoredContentPresentation = (
   }
 
   return normalizeContentInput(content)
+}
+
+// These helpers keep upload cleanup logic shared between the editor and save flow.
+export const hasStoredContentInlineImages = (content: unknown) =>
+  /data:image\//i.test(normalizeContentInput(content))
+
+export const extractStoredContentImageUrls = (content: unknown) => {
+  const normalized = normalizeContentInput(content)
+  const matches = normalized.match(/\/uploads\/blogs\/[^\s"'\\)]+/g) ?? []
+  return Array.from(new Set(matches))
 }
 
 const compressBreaks = (value: string) =>

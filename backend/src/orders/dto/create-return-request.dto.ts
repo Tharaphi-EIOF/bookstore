@@ -12,7 +12,10 @@ export class CreateReturnRequestDto {
   @MaxLength(120)
   reason!: string;
 
-  @ApiProperty({ example: 'Cover was torn and two pages were missing.', required: false })
+  @ApiProperty({
+    example: 'Cover was torn and two pages were missing.',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(1000)

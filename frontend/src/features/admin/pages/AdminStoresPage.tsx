@@ -18,6 +18,10 @@ import {
 import { useTimedMessage } from '@/hooks/useTimedMessage'
 import AdminSlideOverPanel from '@/components/admin/AdminSlideOverPanel'
 import AdminIconActionButton from '@/components/admin/AdminIconActionButton'
+import AdminPageIntro from '@/components/admin/AdminPageIntro'
+import AdminFilterCard from '@/components/admin/AdminFilterCard'
+import AdminPaginationFooter from '@/components/admin/AdminPaginationFooter'
+import AdminSurfacePanel from '@/components/admin/AdminSurfacePanel'
 
 const emptyStore = {
   name: '',
@@ -53,6 +57,11 @@ type TransferDraft = {
 }
 
 const STORE_TRANSFER_DRAFTS_KEY = 'store-transfer-drafts-v1'
+type StoreStatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE' | 'BIN'
+type StoreSortOption = 'NAME' | 'CITY' | 'SALES' | 'ORDERS'
+type StoresTab = 'branches' | 'storeInventory' | 'ranking'
+
+const ITEMS_PER_PAGE = 6
 
 const AdminStoresPage = () => {
   const { data: stores = [] } = useStores('active')
@@ -70,6 +79,15 @@ const AdminStoresPage = () => {
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null)
   const [isStorePanelOpen, setIsStorePanelOpen] = useState(false)
   const [isTransferPanelOpen, setIsTransferPanelOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<StoresTab>('branches')
+  const [storeQuery, setStoreQuery] = useState('')
+  const [storeStatusFilter, setStoreStatusFilter] = useState<StoreStatusFilter>('ALL')
+  const [storeSort, setStoreSort] = useState<StoreSortOption>('NAME')
+  const [inventoryQuery, setInventoryQuery] = useState('')
+  const [inventoryGenre, setInventoryGenre] = useState('')
+  const [branchPage, setBranchPage] = useState(1)
+  const [inventoryPage, setInventoryPage] = useState(1)
+  const [rankingPage, setRankingPage] = useState(1)
   const [storeForm, setStoreForm] = useState(emptyStore)
   const [transferForm, setTransferForm] = useState({
     fromWarehouseId: '',
@@ -100,10 +118,62 @@ const AdminStoresPage = () => {
     () => stores.filter((store) => store.isActive && !store.deletedAt),
     [stores],
   )
+  const storeSalesMap = useMemo(
+    () => new Map((salesOverview?.perStore ?? []).map((entry) => [entry.store.id, entry])),
+    [salesOverview],
+  )
+  const selectedStoreSales = useMemo(
+    () => (selectedStoreId ? storeSalesMap.get(selectedStoreId) ?? null : null),
+    [selectedStoreId, storeSalesMap],
+  )
   const activeWarehouses = useMemo(
     () => warehouses.filter((warehouse) => warehouse.isActive),
     [warehouses],
   )
+  const filteredStores = useMemo(() => {
+    const normalizedQuery = storeQuery.trim().toLowerCase()
+    const matchesQuery = (store: Store) => {
+      if (!normalizedQuery) return true
+      return [
+        store.name,
+        store.code,
+        store.city,
+        store.state,
+        store.phone || '',
+        store.email || '',
+      ].some((value) => value.toLowerCase().includes(normalizedQuery))
+    }
+
+    const matchesStatus = (store: Store) => {
+      switch (storeStatusFilter) {
+        case 'ACTIVE':
+          return store.isActive && !store.deletedAt
+        case 'INACTIVE':
+          return !store.isActive && !store.deletedAt
+        case 'BIN':
+          return Boolean(store.deletedAt)
+        default:
+          return true
+      }
+    }
+
+    return stores
+      .filter((store) => matchesQuery(store) && matchesStatus(store))
+      .sort((a, b) => {
+        if (storeSort === 'CITY') {
+          return `${a.city} ${a.state}`.localeCompare(`${b.city} ${b.state}`) || a.name.localeCompare(b.name)
+        }
+        if (storeSort === 'SALES') {
+          return (storeSalesMap.get(b.id)?.grossSales ?? 0) - (storeSalesMap.get(a.id)?.grossSales ?? 0)
+            || a.name.localeCompare(b.name)
+        }
+        if (storeSort === 'ORDERS') {
+          return (storeSalesMap.get(b.id)?.totalOrders ?? 0) - (storeSalesMap.get(a.id)?.totalOrders ?? 0)
+            || a.name.localeCompare(b.name)
+        }
+        return a.name.localeCompare(b.name)
+      })
+  }, [storeQuery, storeSalesMap, storeSort, storeStatusFilter, stores])
   const stockedBooks = useMemo(
     () => selectedWarehouseStocks.filter((row) => row.stock > 0),
     [selectedWarehouseStocks],
@@ -111,6 +181,61 @@ const AdminStoresPage = () => {
   const currentStoreBooks = useMemo(
     () => selectedStoreStocks.filter((row) => row.stock > 0).sort((a, b) => b.stock - a.stock || a.book.title.localeCompare(b.book.title)),
     [selectedStoreStocks],
+  )
+  const filteredStoreBooks = useMemo(() => {
+    let filtered = currentStoreBooks
+
+    if (inventoryGenre) {
+      filtered = filtered.filter((row) => row.book.genres?.includes(inventoryGenre))
+    }
+
+    const normalizedQuery = inventoryQuery.trim().toLowerCase()
+    if (normalizedQuery) {
+      filtered = filtered.filter((row) =>
+        [row.book.title, row.book.author, row.book.isbn].some((value) => value.toLowerCase().includes(normalizedQuery)),
+      )
+    }
+
+    return filtered
+  }, [currentStoreBooks, inventoryQuery, inventoryGenre])
+
+  const availableGenres = useMemo(() => {
+    const genres = new Set<string>()
+    for (const row of currentStoreBooks) {
+      if (Array.isArray(row.book.genres)) {
+        for (const g of row.book.genres) {
+          genres.add(g)
+        }
+      }
+    }
+    return Array.from(genres).sort()
+  }, [currentStoreBooks])
+
+  const selectedStoreTopAuthor = useMemo(() => {
+    const authorTotals = new Map<string, number>()
+    for (const book of selectedStoreSales?.topBooks ?? []) {
+      authorTotals.set(book.author, (authorTotals.get(book.author) ?? 0) + book.quantity)
+    }
+    return [...authorTotals.entries()].sort((a, b) => b[1] - a[1])[0] ?? null
+  }, [selectedStoreSales])
+  const selectedStoreStockUnits = useMemo(
+    () => currentStoreBooks.reduce((sum, row) => sum + row.stock, 0),
+    [currentStoreBooks],
+  )
+  const branchTotalPages = Math.max(1, Math.ceil(filteredStores.length / ITEMS_PER_PAGE))
+  const inventoryTotalPages = Math.max(1, Math.ceil(filteredStoreBooks.length / ITEMS_PER_PAGE))
+  const rankingTotalPages = Math.max(1, Math.ceil(topStores.length / ITEMS_PER_PAGE))
+  const paginatedStores = useMemo(
+    () => filteredStores.slice((branchPage - 1) * ITEMS_PER_PAGE, branchPage * ITEMS_PER_PAGE),
+    [branchPage, filteredStores],
+  )
+  const paginatedStoreBooks = useMemo(
+    () => filteredStoreBooks.slice((inventoryPage - 1) * ITEMS_PER_PAGE, inventoryPage * ITEMS_PER_PAGE),
+    [filteredStoreBooks, inventoryPage],
+  )
+  const paginatedTopStores = useMemo(
+    () => topStores.slice((rankingPage - 1) * ITEMS_PER_PAGE, rankingPage * ITEMS_PER_PAGE),
+    [rankingPage, topStores],
   )
   const selectedWarehouseStockMap = useMemo(
     () => new Map(stockedBooks.map((row) => [row.bookId, row])),
@@ -126,6 +251,37 @@ const AdminStoresPage = () => {
       setSelectedStoreId(stores[0]?.id ?? null)
     }
   }, [selectedStoreId, stores])
+
+  useEffect(() => {
+    if (filteredStores.length === 0) return
+    if (!selectedStoreId || !filteredStores.some((store) => store.id === selectedStoreId)) {
+      setSelectedStoreId(filteredStores[0]?.id ?? null)
+    }
+  }, [filteredStores, selectedStoreId])
+
+  useEffect(() => {
+    setBranchPage(1)
+  }, [storeQuery, storeSort, storeStatusFilter])
+
+  useEffect(() => {
+    setInventoryPage(1)
+  }, [inventoryQuery, inventoryGenre, selectedStoreId])
+
+  useEffect(() => {
+    setRankingPage(1)
+  }, [topStores.length])
+
+  useEffect(() => {
+    if (branchPage > branchTotalPages) setBranchPage(branchTotalPages)
+  }, [branchPage, branchTotalPages])
+
+  useEffect(() => {
+    if (inventoryPage > inventoryTotalPages) setInventoryPage(inventoryTotalPages)
+  }, [inventoryPage, inventoryTotalPages])
+
+  useEffect(() => {
+    if (rankingPage > rankingTotalPages) setRankingPage(rankingTotalPages)
+  }, [rankingPage, rankingTotalPages])
 
   useEffect(() => {
     try {
@@ -329,13 +485,12 @@ const AdminStoresPage = () => {
   }
 
   return (
-    <div className="space-y-6 p-8 dark:text-slate-100">
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">Physical Stores</h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-8 p-6 sm:p-8 dark:text-slate-100">
+      <AdminPageIntro
+        eyebrow="Inventory"
+        title="Physical Stores"
+        actions={(
+          <>
             <button
               type="button"
               onClick={() => {
@@ -343,7 +498,7 @@ const AdminStoresPage = () => {
                 setStoreForm(emptyStore)
                 setIsStorePanelOpen(true)
               }}
-              className="inline-flex h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-slate-800 dark:bg-amber-400 dark:text-slate-900 dark:hover:bg-amber-300"
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-slate-900 px-4 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-slate-800 dark:bg-amber-400 dark:text-slate-900 dark:hover:bg-amber-300"
             >
               <Plus className="h-4 w-4" />
               New Store
@@ -351,21 +506,21 @@ const AdminStoresPage = () => {
             <button
               type="button"
               onClick={() => setIsTransferPanelOpen(true)}
-              className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold uppercase tracking-widest text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-xs font-semibold uppercase tracking-widest text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <ArrowRightLeft className="h-4 w-4" />
               New Transfer
             </button>
             <Link
               to="/admin/bin"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               aria-label="Open bin"
             >
               <Trash2 className="h-4 w-4" />
             </Link>
-          </div>
-        </div>
-      </div>
+          </>
+        )}
+      />
 
       {message && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200">
@@ -373,195 +528,349 @@ const AdminStoresPage = () => {
         </div>
       )}
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="Branches" value={salesOverview?.totals.stores ?? stores.length} />
-        <MetricCard label="Pickup Ready" value={salesOverview?.totals.activeStores ?? stores.filter((store) => store.isActive).length} />
-        <MetricCard label="Pickup Orders" value={salesOverview?.totals.orders ?? 0} />
-        <MetricCard label="Pickup Sales" value={`$${(salesOverview?.totals.grossSales ?? 0).toFixed(2)}`} />
-        <MetricCard label="Avg Pickup Order" value={`$${(salesOverview?.totals.avgOrderValue ?? 0).toFixed(2)}`} />
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-5">
+        <MetricCard label="Branches" value={salesOverview?.totals.stores ?? stores.length} hint="Active pickup locations" />
+        <MetricCard label="Pickup Ready" value={salesOverview?.totals.activeStores ?? stores.filter((store) => store.isActive).length} hint="Branches currently online" />
+        <MetricCard label="Pickup Orders" value={salesOverview?.totals.orders ?? 0} hint="Orders routed to stores" />
+        <MetricCard label="Pickup Sales" value={`$${(salesOverview?.totals.grossSales ?? 0).toFixed(2)}`} hint="Gross pickup revenue" />
+        <MetricCard label="Avg Pickup Order" value={`$${(salesOverview?.totals.avgOrderValue ?? 0).toFixed(2)}`} hint="Average order value" />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
-        <div className="rounded-2xl border bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-500">Branch Directory</h2>
-            <span className="text-xs text-slate-400">{stores.length} locations</span>
-          </div>
-          <div className="mt-4 overflow-auto">
-            <table className="min-w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="px-2 py-2">Branch</th>
-                  <th className="px-2 py-2">Code</th>
-                  <th className="px-2 py-2">Location</th>
-                  <th className="px-2 py-2">Status</th>
-                  <th className="px-2 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stores.map((store) => (
-                  <tr
-                    key={store.id}
-                    className={`border-t border-slate-100 transition-colors dark:border-slate-800 ${
-                      selectedStoreId === store.id ? 'bg-slate-50 dark:bg-slate-800/40' : ''
-                    }`}
-                  >
-                    <td className="px-2 py-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedStoreId(store.id)}
-                        className="text-left"
-                      >
-                        <p className="font-medium">{store.name}</p>
-                      </button>
-                      <p className="text-xs text-slate-500">{store.phone || store.email || 'Pickup branch profile'}</p>
-                    </td>
-                    <td className="px-2 py-2 font-mono text-xs">{store.code}</td>
-                    <td className="px-2 py-2">{store.city}, {store.state}</td>
-                    <td className="px-2 py-2">
-                      <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${store.deletedAt ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200' : store.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}`}>
-                        {store.deletedAt ? 'In Bin' : store.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {!store.deletedAt ? (
-                          <>
-                            <AdminIconActionButton
-                              label="Edit store"
-                              icon={<Pencil className="h-4 w-4" />}
-                              onClick={() => {
-                                setEditingStoreId(store.id)
-                                syncFormFromStore(store)
-                                setIsStorePanelOpen(true)
-                              }}
-                            />
-                            <AdminIconActionButton
-                              label="Move store to bin"
-                              icon={<Trash2 className="h-4 w-4" />}
-                              variant="danger"
-                              onClick={() => onDeleteStore(store.id)}
-                            />
-                          </>
-                        ) : (
-                          <>
-                            <AdminIconActionButton
-                              label="Restore store"
-                              icon={<RotateCcw className="h-4 w-4" />}
-                              variant="success"
-                              onClick={() => onRestoreStore(store.id)}
-                            />
-                            <AdminIconActionButton
-                              label="Delete store permanently"
-                              icon={<Trash2 className="h-4 w-4" />}
-                              variant="danger"
-                              onClick={() => onPermanentDeleteStore(store.id)}
-                            />
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <section className="space-y-6">
+        <div className="inline-flex flex-wrap items-center gap-1 rounded-full border border-white/70 bg-white/80 p-1.5 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.24)] backdrop-blur dark:border-slate-800/80 dark:bg-slate-950/70">
+          <TabButton label="Branches" active={activeTab === 'branches'} onClick={() => setActiveTab('branches')} />
+          <TabButton label="Store Table" active={activeTab === 'storeInventory'} onClick={() => setActiveTab('storeInventory')} />
+          <TabButton label="Ranking" active={activeTab === 'ranking'} onClick={() => setActiveTab('ranking')} />
         </div>
 
-        <div className="rounded-2xl border bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-500">Store Inventory</h2>
-              <p className="mt-1 text-xs text-slate-400">
-                {selectedStore ? `${selectedStore.name}` : 'Select a store from the directory'}
-              </p>
-            </div>
-            <span className="text-xs text-slate-400">
-              {currentStoreBooks.length} title{currentStoreBooks.length === 1 ? '' : 's'}
-            </span>
-          </div>
-          <div className="mt-4 space-y-3">
+        {activeTab === 'branches' && (
+          <>
+            <AdminFilterCard className="space-y-5">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_220px_220px_auto]">
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Search</span>
+                  <input
+                    value={storeQuery}
+                    onChange={(e) => setStoreQuery(e.target.value)}
+                    placeholder="Search branch, code, city, state"
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Status</span>
+                  <select
+                    value={storeStatusFilter}
+                    onChange={(e) => setStoreStatusFilter(e.target.value as StoreStatusFilter)}
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    <option value="ALL">All stores</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                    <option value="BIN">In bin</option>
+                  </select>
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Sort</span>
+                  <select
+                    value={storeSort}
+                    onChange={(e) => setStoreSort(e.target.value as StoreSortOption)}
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    <option value="NAME">Name</option>
+                    <option value="CITY">City</option>
+                    <option value="SALES">Pickup sales</option>
+                    <option value="ORDERS">Pickup orders</option>
+                  </select>
+                </label>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStoreQuery('')
+                      setStoreStatusFilter('ALL')
+                      setStoreSort('NAME')
+                    }}
+                    className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-xs font-semibold uppercase tracking-widest text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Reset Filters
+                  </button>
+                </div>
+              </div>
+            </AdminFilterCard>
+
+            <AdminSurfacePanel className="overflow-hidden p-0">
+              <table className="w-full table-fixed text-sm">
+                <thead className="text-left text-xs uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-4 py-4">Branch</th>
+                    <th className="px-4 py-4">Code</th>
+                    <th className="px-4 py-4">Location</th>
+                    <th className="px-4 py-4">Status</th>
+                    <th className="px-4 py-4">Pickup Snapshot</th>
+                    <th className="px-4 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedStores.map((store) => (
+                    <tr
+                      key={store.id}
+                      className={`border-t border-slate-100 align-top transition-colors dark:border-slate-800 ${
+                        selectedStoreId === store.id ? 'bg-slate-50/80 dark:bg-slate-800/40' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStoreId(store.id)}
+                          className="text-left transition hover:opacity-80"
+                        >
+                          <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{store.name}</p>
+                        </button>
+                        <p className="mt-1 text-sm text-slate-500">{store.phone || store.email || 'Pickup branch profile'}</p>
+                      </td>
+                      <td className="px-4 py-5 font-mono text-xs text-slate-500">{store.code}</td>
+                      <td className="px-4 py-5">{store.city}, {store.state}</td>
+                      <td className="px-4 py-5">
+                        <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${store.deletedAt ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200' : store.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}`}>
+                          {store.deletedAt ? 'In Bin' : store.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-5">
+                        <div className="space-y-1 text-sm text-slate-600 dark:text-slate-300">
+                          <p>{storeSalesMap.get(store.id)?.totalOrders ?? 0} orders</p>
+                          <p className="text-xs text-slate-500">${(storeSalesMap.get(store.id)?.grossSales ?? 0).toFixed(2)} sales</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-5">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {!store.deletedAt ? (
+                            <>
+                              <AdminIconActionButton
+                                label="Edit store"
+                                icon={<Pencil className="h-4 w-4" />}
+                                onClick={() => {
+                                  setEditingStoreId(store.id)
+                                  syncFormFromStore(store)
+                                  setIsStorePanelOpen(true)
+                                }}
+                              />
+                              <AdminIconActionButton
+                                label="Move store to bin"
+                                icon={<Trash2 className="h-4 w-4" />}
+                                variant="danger"
+                                onClick={() => onDeleteStore(store.id)}
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <AdminIconActionButton
+                                label="Restore store"
+                                icon={<RotateCcw className="h-4 w-4" />}
+                                variant="success"
+                                onClick={() => onRestoreStore(store.id)}
+                              />
+                              <AdminIconActionButton
+                                label="Delete store permanently"
+                                icon={<Trash2 className="h-4 w-4" />}
+                                variant="danger"
+                                onClick={() => onPermanentDeleteStore(store.id)}
+                              />
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {paginatedStores.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-sm text-slate-500">
+                        No stores match the current filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <AdminPaginationFooter
+                page={branchPage}
+                totalPages={branchTotalPages}
+                onPrev={() => setBranchPage((prev) => Math.max(1, prev - 1))}
+                onNext={() => setBranchPage((prev) => Math.min(branchTotalPages, prev + 1))}
+              />
+            </AdminSurfacePanel>
+          </>
+        )}
+
+        {activeTab === 'storeInventory' && (
+          <>
+            <AdminFilterCard className="space-y-5">
+              <div className="grid gap-3 md:grid-cols-[250px_minmax(0,1fr)_180px_auto]">
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Store</span>
+                  <select
+                    value={selectedStoreId ?? ''}
+                    onChange={(e) => setSelectedStoreId(e.target.value || null)}
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    {activeStores.map((store) => (
+                      <option key={store.id} value={store.id}>
+                        {store.name} ({store.code})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Search Inventory</span>
+                  <input
+                    value={inventoryQuery}
+                    onChange={(e) => setInventoryQuery(e.target.value)}
+                    placeholder="Search book, author, ISBN"
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Genre</span>
+                  <select
+                    value={inventoryGenre}
+                    onChange={(e) => setInventoryGenre(e.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    <option value="">All genres</option>
+                    {availableGenres.map((g) => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex items-end">
+                  <div className="rounded-full bg-slate-100 px-3 py-3 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                    {filteredStoreBooks.length} of {currentStoreBooks.length} titles
+                  </div>
+                </div>
+              </div>
+            </AdminFilterCard>
+
             {selectedStore ? (
               <>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/40">
-                  <div className="flex items-start justify-between gap-3">
+                <AdminSurfacePanel className="space-y-5 p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{selectedStore.name}</h3>
-                      <p className="text-sm text-slate-500">{selectedStore.city}, {selectedStore.state}</p>
+                      <h3 className="text-[1.55rem] font-semibold leading-tight text-slate-900 dark:text-slate-100">{selectedStore.name}</h3>
+                      <p className="mt-1 text-sm text-slate-500">{selectedStore.city}, {selectedStore.state}</p>
+                      <p className="mt-1 text-sm text-slate-400">{selectedStore.phone || selectedStore.email || 'Store contact not added yet'}</p>
                     </div>
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${selectedStore.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}`}>
                       {selectedStore.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </div>
-                </div>
-                <div className="max-h-[32rem] overflow-auto rounded-2xl border border-slate-200 dark:border-slate-800">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500 dark:bg-slate-800/60">
+
+                  <div className="grid gap-4 border-t border-slate-100 pt-4 text-sm dark:border-slate-800 sm:grid-cols-2 xl:grid-cols-4">
+                    <InlineStoreStat label="Titles in stock" value={currentStoreBooks.length} />
+                    <InlineStoreStat label="Units on shelves" value={selectedStoreStockUnits} />
+                    <InlineStoreStat label="Pickup orders" value={selectedStoreSales?.totalOrders ?? 0} />
+                    <InlineStoreStat label="Pickup sales" value={`$${(selectedStoreSales?.grossSales ?? 0).toFixed(2)}`} />
+                  </div>
+                </AdminSurfacePanel>
+
+                <AdminSurfacePanel className="overflow-hidden p-0">
+                  <table className="w-full table-fixed text-sm">
+                    <thead className="text-left text-xs uppercase tracking-wider text-slate-500">
                       <tr>
-                        <th className="px-3 py-2">Book</th>
-                        <th className="px-3 py-2">Author</th>
-                        <th className="px-3 py-2">ISBN</th>
-                        <th className="px-3 py-2">Stock</th>
+                        <th className="px-4 py-4">Book</th>
+                        <th className="px-4 py-4">Author</th>
+                        <th className="px-4 py-4">ISBN</th>
+                        <th className="px-4 py-4">Stock</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {currentStoreBooks.map((row) => (
+                      {paginatedStoreBooks.map((row) => (
                         <tr key={row.id} className="border-t border-slate-100 dark:border-slate-800">
-                          <td className="px-3 py-2 font-medium">{row.book.title}</td>
-                          <td className="px-3 py-2">{row.book.author}</td>
-                          <td className="px-3 py-2 text-xs text-slate-500">{row.book.isbn}</td>
-                          <td className="px-3 py-2 font-semibold">{row.stock}</td>
+                          <td className="px-4 py-4 font-medium leading-6">{row.book.title}</td>
+                          <td className="px-4 py-4 text-slate-700 dark:text-slate-200">{row.book.author}</td>
+                          <td className="px-4 py-4 text-xs leading-6 text-slate-500">{row.book.isbn}</td>
+                          <td className="px-4 py-4 font-semibold">{row.stock}</td>
                         </tr>
                       ))}
-                      {currentStoreBooks.length === 0 && (
+                      {paginatedStoreBooks.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="px-3 py-4 text-sm text-slate-500">
-                            No books currently stocked in this store.
+                          <td colSpan={4} className="px-4 py-6 text-sm text-slate-500">
+                            {currentStoreBooks.length === 0
+                              ? 'No books currently stocked in this store.'
+                              : 'No inventory rows match the current search.'}
                           </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
+                  <AdminPaginationFooter
+                    page={inventoryPage}
+                    totalPages={inventoryTotalPages}
+                    onPrev={() => setInventoryPage((prev) => Math.max(1, prev - 1))}
+                    onNext={() => setInventoryPage((prev) => Math.min(inventoryTotalPages, prev + 1))}
+                  />
+                </AdminSurfacePanel>
+
+                <div className="grid gap-4 xl:grid-cols-3">
+                  <HighlightRow
+                    label="Top book"
+                    value={selectedStoreSales?.topBooks[0]?.title || 'No sales yet'}
+                    meta={selectedStoreSales?.topBooks[0] ? `${selectedStoreSales.topBooks[0].quantity} units · ${selectedStoreSales.topBooks[0].author}` : 'Waiting for completed pickup sales'}
+                  />
+                  <HighlightRow
+                    label="Top author"
+                    value={selectedStoreTopAuthor?.[0] || 'No sales yet'}
+                    meta={selectedStoreTopAuthor ? `${selectedStoreTopAuthor[1]} units sold from top titles` : 'Needs sales data from this branch'}
+                  />
+                  <HighlightRow
+                    label="Average order"
+                    value={`$${(selectedStoreSales?.avgOrderValue ?? 0).toFixed(2)}`}
+                    meta={`${selectedStoreSales?.completedOrders ?? 0} completed pickup order(s)`}
+                  />
                 </div>
               </>
             ) : (
-              <p className="text-sm text-slate-500">No store selected yet.</p>
+              <AdminSurfacePanel className="p-6">
+                <p className="text-sm text-slate-500">No store selected yet.</p>
+              </AdminSurfacePanel>
             )}
-          </div>
-        </div>
-      </section>
+          </>
+        )}
 
-      <section className="rounded-2xl border bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-500">Pickup Sales Ranking</h2>
-        <div className="mt-4 overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-wider text-slate-500">
-              <tr>
-                <th className="px-2 py-2">Store</th>
-                <th className="px-2 py-2">Orders</th>
-                <th className="px-2 py-2">Units</th>
-                <th className="px-2 py-2">Sales</th>
-                <th className="px-2 py-2">Top Book</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topStores.map((entry) => (
-                <tr key={entry.store.id} className="border-t border-slate-100 dark:border-slate-800">
-                  <td className="px-2 py-2">{entry.store.name}</td>
-                  <td className="px-2 py-2">{entry.totalOrders}</td>
-                  <td className="px-2 py-2">{entry.unitsSold}</td>
-                  <td className="px-2 py-2">${entry.grossSales.toFixed(2)}</td>
-                  <td className="px-2 py-2 text-xs text-slate-500">{entry.topBooks[0]?.title || '-'}</td>
-                </tr>
-              ))}
-              {topStores.length === 0 && (
+        {activeTab === 'ranking' && (
+          <AdminSurfacePanel className="overflow-hidden p-0">
+            <table className="w-full table-fixed text-sm">
+              <thead className="text-left text-xs uppercase tracking-wider text-slate-500">
                 <tr>
-                  <td colSpan={5} className="px-2 py-4 text-sm text-slate-500">No store pickup sales yet.</td>
+                  <th className="px-4 py-4">Store</th>
+                  <th className="px-4 py-4">Orders</th>
+                  <th className="px-4 py-4">Units</th>
+                  <th className="px-4 py-4">Sales</th>
+                  <th className="px-4 py-4">Top Book</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {paginatedTopStores.map((entry) => (
+                  <tr key={entry.store.id} className="border-t border-slate-100 dark:border-slate-800">
+                    <td className="px-4 py-4 font-medium">{entry.store.name}</td>
+                    <td className="px-4 py-4">{entry.totalOrders}</td>
+                    <td className="px-4 py-4">{entry.unitsSold}</td>
+                    <td className="px-4 py-4">${entry.grossSales.toFixed(2)}</td>
+                    <td className="px-4 py-4 text-xs text-slate-500">{entry.topBooks[0]?.title || '-'}</td>
+                  </tr>
+                ))}
+                {paginatedTopStores.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-sm text-slate-500">No store pickup sales yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            <AdminPaginationFooter
+              page={rankingPage}
+              totalPages={rankingTotalPages}
+              onPrev={() => setRankingPage((prev) => Math.max(1, prev - 1))}
+              onNext={() => setRankingPage((prev) => Math.min(rankingTotalPages, prev + 1))}
+            />
+          </AdminSurfacePanel>
+        )}
       </section>
 
       <AdminSlideOverPanel
@@ -788,13 +1097,61 @@ const AdminStoresPage = () => {
 type MetricCardProps = {
   label: string
   value: number | string
+  hint: string
 }
 
-const MetricCard = ({ label, value }: MetricCardProps) => (
-  <div className="rounded-2xl border bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+const MetricCard = ({ label, value, hint }: MetricCardProps) => (
+  <AdminSurfacePanel className="min-h-[112px] p-4">
     <p className="text-xs uppercase tracking-widest text-slate-500">{label}</p>
-    <p className="mt-2 text-2xl font-bold">{value}</p>
+    <p className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
+    <p className="mt-2 text-xs text-slate-400">{hint}</p>
+  </AdminSurfacePanel>
+)
+
+type InlineStoreStatProps = {
+  label: string
+  value: number | string
+}
+
+const InlineStoreStat = ({ label, value }: InlineStoreStatProps) => (
+  <div>
+    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+    <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">{value}</p>
   </div>
+)
+
+type HighlightRowProps = {
+  label: string
+  value: string
+  meta: string
+}
+
+const HighlightRow = ({ label, value, meta }: HighlightRowProps) => (
+  <AdminSurfacePanel className="space-y-0 p-5">
+    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+    <p className="mt-3 text-lg font-semibold text-slate-900 dark:text-slate-100">{value}</p>
+    <p className="mt-1 text-sm text-slate-500">{meta}</p>
+  </AdminSurfacePanel>
+)
+
+type TabButtonProps = {
+  label: string
+  active: boolean
+  onClick: () => void
+}
+
+const TabButton = ({ label, active, onClick }: TabButtonProps) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+      active
+        ? 'bg-slate-900 text-white dark:bg-amber-400 dark:text-slate-900'
+        : 'text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+    }`}
+  >
+    {label}
+  </button>
 )
 
 export default AdminStoresPage

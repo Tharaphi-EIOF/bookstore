@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,11 +10,19 @@ import {
   Query,
   Request,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes } from '@nestjs/swagger';
+import { diskStorage } from 'multer';
+import { randomUUID } from 'crypto';
+import { mkdirSync } from 'fs';
+import { extname } from 'path';
 import {
   ApiBearerAuth,
-  ApiOperation,
   ApiResponse,
+  ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt.guard';
@@ -100,6 +109,72 @@ export class BlogsController {
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
+  @Post('assets')
+  @ApiOperation({ summary: 'Upload an inline image for blog content' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Blog image uploaded successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string' },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, _file, cb) => {
+          const userId = String((req as any).user?.sub || '').trim();
+          const dir = `./uploads/blogs/${userId}`;
+          mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+          cb(null, `${randomUUID()}${extname(file.originalname)}`);
+        },
+      }),
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+      },
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp|gif)$/)) {
+          return cb(
+            new BadRequestException('Only image files are allowed.'),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadBlogImage(
+    @Request() req: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('File is not provided');
+    }
+
+    return {
+      url: `/uploads/blogs/${req.user.sub}/${file.filename}`,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
   @Patch(':blogId')
   @ApiOperation({ summary: 'Update own blog post (or admin)' })
   updateBlog(
@@ -108,6 +183,14 @@ export class BlogsController {
     @Body() dto: UpdateBlogDto,
   ) {
     return this.blogsService.updateBlog(req.user.sub, blogId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Delete('assets')
+  @ApiOperation({ summary: 'Delete an unused uploaded blog image' })
+  deleteUploadedBlogImage(@Request() req: any, @Query('url') url: string) {
+    return this.blogsService.deleteUploadedImage(req.user.sub, url);
   }
 
   @UseGuards(JwtAuthGuard)

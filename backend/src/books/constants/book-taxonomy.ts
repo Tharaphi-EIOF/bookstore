@@ -7,7 +7,10 @@ export const BOOK_CATEGORIES = [
   'Reference',
 ] as const;
 
-export const BOOK_GENRES_BY_CATEGORY: Record<(typeof BOOK_CATEGORIES)[number], string[]> = {
+export const BOOK_GENRES_BY_CATEGORY: Record<
+  (typeof BOOK_CATEGORIES)[number],
+  string[]
+> = {
   Fiction: [
     'Fantasy',
     'Sci-Fi',

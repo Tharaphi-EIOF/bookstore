@@ -20,7 +20,9 @@ describe('AllExceptionsFilter', () => {
     loggerErrorSpy = jest
       .spyOn((filter as any).logger, 'error')
       .mockImplementation();
-    loggerWarnSpy = jest.spyOn((filter as any).logger, 'warn').mockImplementation();
+    loggerWarnSpy = jest
+      .spyOn((filter as any).logger, 'warn')
+      .mockImplementation();
 
     mockResponse = {
       status: jest.fn().mockReturnThis(),

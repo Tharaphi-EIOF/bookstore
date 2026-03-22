@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreateBookDto } from './dto/create-book.dto';
 import { UpdateBookDto } from './dto/update-book.dto';
@@ -25,7 +29,9 @@ export class BooksService {
     if (!Array.isArray(values)) {
       return undefined;
     }
-    return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+    return Array.from(
+      new Set(values.map((value) => value.trim()).filter(Boolean)),
+    );
   }
 
   private validateAndNormalizeTaxonomy(
@@ -35,7 +41,8 @@ export class BooksService {
     const normalizedCategories = this.normalizeTagList(dto.categories);
     const normalizedGenres = this.normalizeTagList(dto.genres);
 
-    const categoriesForValidation = normalizedCategories ?? existing?.categories ?? [];
+    const categoriesForValidation =
+      normalizedCategories ?? existing?.categories ?? [];
     const genresForValidation = normalizedGenres ?? existing?.genres ?? [];
 
     if (genresForValidation.length > 0) {
@@ -61,7 +68,11 @@ export class BooksService {
     const hasDigitalFile = typeof dto.ebookFilePath !== 'undefined';
     const allowExistingDigital = options?.allowExistingDigital === true;
 
-    if (!isDigital && !allowExistingDigital && (hasDigitalFormat || hasDigitalFile)) {
+    if (
+      !isDigital &&
+      !allowExistingDigital &&
+      (hasDigitalFormat || hasDigitalFile)
+    ) {
       throw new BadRequestException(
         'ebookFormat and ebookFilePath are only allowed when isDigital is true.',
       );
@@ -69,16 +80,20 @@ export class BooksService {
 
     if (isDigital) {
       if (
-        typeof dto.ebookPrice !== 'undefined'
-        && Number(dto.ebookPrice) <= 0
+        typeof dto.ebookPrice !== 'undefined' &&
+        Number(dto.ebookPrice) <= 0
       ) {
         throw new BadRequestException('ebookPrice must be greater than 0.');
       }
       if (!dto.ebookFormat) {
-        throw new BadRequestException('ebookFormat is required for digital books.');
+        throw new BadRequestException(
+          'ebookFormat is required for digital books.',
+        );
       }
       if (!dto.ebookFilePath?.trim()) {
-        throw new BadRequestException('ebookFilePath is required for digital books.');
+        throw new BadRequestException(
+          'ebookFilePath is required for digital books.',
+        );
       }
     }
   }
@@ -124,10 +139,10 @@ export class BooksService {
     const minOffset = Math.max(0, buffer.length - 65557);
     for (let i = buffer.length - 22; i >= minOffset; i -= 1) {
       if (
-        buffer[i] === 0x50
-        && buffer[i + 1] === 0x4b
-        && buffer[i + 2] === 0x05
-        && buffer[i + 3] === 0x06
+        buffer[i] === 0x50 &&
+        buffer[i + 1] === 0x4b &&
+        buffer[i + 2] === 0x05 &&
+        buffer[i + 3] === 0x06
       ) {
         return i;
       }
@@ -138,7 +153,9 @@ export class BooksService {
   private parseZipEntries(buffer: Buffer) {
     const eocdOffset = this.findZipEndOfCentralDirectory(buffer);
     if (eocdOffset < 0) {
-      throw new BadRequestException('Invalid EPUB file: ZIP end record is missing.');
+      throw new BadRequestException(
+        'Invalid EPUB file: ZIP end record is missing.',
+      );
     }
 
     const centralDirectorySize = buffer.readUInt32LE(eocdOffset + 12);
@@ -146,11 +163,18 @@ export class BooksService {
     const centralDirectoryEnd = centralDirectoryOffset + centralDirectorySize;
     const entries = new Map<
       string,
-      { compressionMethod: number; compressedSize: number; localHeaderOffset: number }
+      {
+        compressionMethod: number;
+        compressedSize: number;
+        localHeaderOffset: number;
+      }
     >();
 
     let pointer = centralDirectoryOffset;
-    while (pointer + 46 <= centralDirectoryEnd && pointer + 46 <= buffer.length) {
+    while (
+      pointer + 46 <= centralDirectoryEnd &&
+      pointer + 46 <= buffer.length
+    ) {
       const signature = buffer.readUInt32LE(pointer);
       if (signature !== 0x02014b50) break;
 
@@ -180,16 +204,24 @@ export class BooksService {
 
   private readZipEntry(
     archive: Buffer,
-    entry: { compressionMethod: number; compressedSize: number; localHeaderOffset: number },
+    entry: {
+      compressionMethod: number;
+      compressedSize: number;
+      localHeaderOffset: number;
+    },
   ): Buffer {
     const localOffset = entry.localHeaderOffset;
     if (localOffset + 30 > archive.length) {
-      throw new BadRequestException('Invalid EPUB file: local header is out of bounds.');
+      throw new BadRequestException(
+        'Invalid EPUB file: local header is out of bounds.',
+      );
     }
 
     const localSignature = archive.readUInt32LE(localOffset);
     if (localSignature !== 0x04034b50) {
-      throw new BadRequestException('Invalid EPUB file: local header signature mismatch.');
+      throw new BadRequestException(
+        'Invalid EPUB file: local header signature mismatch.',
+      );
     }
 
     const fileNameLength = archive.readUInt16LE(localOffset + 26);
@@ -197,7 +229,9 @@ export class BooksService {
     const dataStart = localOffset + 30 + fileNameLength + extraFieldLength;
     const dataEnd = dataStart + entry.compressedSize;
     if (dataEnd > archive.length) {
-      throw new BadRequestException('Invalid EPUB file: compressed entry exceeds archive size.');
+      throw new BadRequestException(
+        'Invalid EPUB file: compressed entry exceeds archive size.',
+      );
     }
 
     const compressedData = archive.subarray(dataStart, dataEnd);
@@ -225,19 +259,27 @@ export class BooksService {
 
     const containerEntry = entries.get('META-INF/container.xml');
     if (!containerEntry) {
-      throw new BadRequestException('Invalid EPUB file: missing META-INF/container.xml.');
+      throw new BadRequestException(
+        'Invalid EPUB file: missing META-INF/container.xml.',
+      );
     }
 
-    const containerXml = this.readZipEntry(archive, containerEntry).toString('utf8');
+    const containerXml = this.readZipEntry(archive, containerEntry).toString(
+      'utf8',
+    );
     const rootFileMatch = containerXml.match(/full-path="([^"]+)"/i);
     if (!rootFileMatch?.[1]) {
-      throw new BadRequestException('Invalid EPUB file: missing OPF root file path.');
+      throw new BadRequestException(
+        'Invalid EPUB file: missing OPF root file path.',
+      );
     }
 
     const opfPath = rootFileMatch[1];
     const opfEntry = entries.get(opfPath);
     if (!opfEntry) {
-      throw new BadRequestException(`Invalid EPUB file: missing package file "${opfPath}".`);
+      throw new BadRequestException(
+        `Invalid EPUB file: missing package file "${opfPath}".`,
+      );
     }
 
     const opfXml = this.readZipEntry(archive, opfEntry).toString('utf8');
@@ -273,7 +315,9 @@ export class BooksService {
       if (!chapterPath) continue;
       const chapterEntry = entries.get(chapterPath);
       if (!chapterEntry) continue;
-      const chapterContent = this.readZipEntry(archive, chapterEntry).toString('utf8');
+      const chapterContent = this.readZipEntry(archive, chapterEntry).toString(
+        'utf8',
+      );
       const cleanedText = chapterContent
         .replace(/<script[\s\S]*?<\/script>/gi, ' ')
         .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -309,7 +353,10 @@ export class BooksService {
       throw new BadRequestException('ebookFilePath is required.');
     }
 
-    const detectedFormat = this.detectEbookFormat(ebookFilePath, dto.ebookFormat);
+    const detectedFormat = this.detectEbookFormat(
+      ebookFilePath,
+      dto.ebookFormat,
+    );
     const absolutePath = this.resolveEbookAbsolutePath(ebookFilePath);
 
     if (detectedFormat === 'PDF') {
@@ -563,7 +610,9 @@ export class BooksService {
   async permanentlyDelete(id: string): Promise<BookWithStockStatus> {
     const existingBook = await this.findOne(id, { includeDeleted: true });
     if (!existingBook.deletedAt) {
-      throw new BadRequestException('Book must be in the bin before permanent deletion.');
+      throw new BadRequestException(
+        'Book must be in the bin before permanent deletion.',
+      );
     }
 
     const [purchaseRequestRefs, purchaseOrderItemRefs] = await Promise.all([

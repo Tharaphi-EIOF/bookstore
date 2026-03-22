@@ -1,7 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PartnerDealStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsEmail, IsEnum, IsNumber, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class CreatePartnerDealDto {
   @ApiProperty({ example: 'Delta Publishing' })
@@ -35,7 +44,10 @@ export class CreatePartnerDealDto {
   @Max(100)
   revenueSharePct!: number;
 
-  @ApiPropertyOptional({ enum: PartnerDealStatus, default: PartnerDealStatus.DRAFT })
+  @ApiPropertyOptional({
+    enum: PartnerDealStatus,
+    default: PartnerDealStatus.DRAFT,
+  })
   @IsOptional()
   @IsEnum(PartnerDealStatus)
   status?: PartnerDealStatus;
@@ -50,7 +62,9 @@ export class CreatePartnerDealDto {
   @Type(() => Date)
   effectiveTo?: Date;
 
-  @ApiPropertyOptional({ example: 'Consignment; we stock and remit monthly settlement.' })
+  @ApiPropertyOptional({
+    example: 'Consignment; we stock and remit monthly settlement.',
+  })
   @IsOptional()
   @IsString()
   termsNote?: string;

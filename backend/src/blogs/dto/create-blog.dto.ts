@@ -38,13 +38,17 @@ export class CreateBlogDto {
   @MaxLength(1000)
   coverImage?: string;
 
-  @ApiPropertyOptional({ enum: ['DRAFT', 'PENDING_REVIEW', 'PUBLISHED'], default: 'DRAFT' })
+  @ApiPropertyOptional({
+    enum: ['DRAFT', 'PENDING_REVIEW', 'PUBLISHED'],
+    default: 'DRAFT',
+  })
   @IsOptional()
   @IsIn(['DRAFT', 'PENDING_REVIEW', 'PUBLISHED'])
   status?: 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED';
 
   @ApiPropertyOptional({
-    description: 'Scheduled publish date/time (kept as draft until manual publish)',
+    description:
+      'Scheduled publish date/time (kept as draft until manual publish)',
     example: '2026-03-15T09:30:00.000Z',
   })
   @IsOptional()

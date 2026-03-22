@@ -216,6 +216,10 @@ const blogPageSettingsSchema = z.object({
   updatedAt: z.string(),
 })
 
+const blogAssetSchema = z.object({
+  url: z.string(),
+})
+
 export type Blog = z.infer<typeof blogSchema>
 export type BlogComment = z.infer<typeof commentSchema>
 export type AuthorFollow = z.infer<typeof followSchema>
@@ -386,6 +390,30 @@ export const useUpdateBlog = () => {
     },
   })
 }
+
+export const useUploadBlogImage = () =>
+  useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const response = await api.post('/blogs/assets', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+      return blogAssetSchema.parse(response.data)
+    },
+  })
+
+export const useDeleteUploadedBlogImage = () =>
+  useMutation({
+    mutationFn: async (url: string) => {
+      const response = await api.delete('/blogs/assets', {
+        params: { url },
+      })
+      return z.object({ deleted: z.boolean() }).parse(response.data)
+    },
+  })
 
 export const usePublishBlog = () => {
   const queryClient = useQueryClient()

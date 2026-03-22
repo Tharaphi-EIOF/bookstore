@@ -50,15 +50,14 @@ export class OrdersController {
   @Post('promotions/validate')
   @ApiOperation({ summary: 'Validate promo code against current cart' })
   @ApiResponse({ status: 200, description: 'Promo validation completed' })
-  validatePromo(
-    @Request() req: any,
-    @Body() dto: ValidatePromoDto,
-  ) {
+  validatePromo(@Request() req: any, @Body() dto: ValidatePromoDto) {
     return this.ordersService.validatePromo(req.user.sub, dto.code);
   }
 
   @Get('checkout-config')
-  @ApiOperation({ summary: 'Get checkout pricing configuration for current user session' })
+  @ApiOperation({
+    summary: 'Get checkout pricing configuration for current user session',
+  })
   @ApiResponse({ status: 200, description: 'Checkout configuration loaded' })
   getCheckoutConfig() {
     return this.ordersService.getCheckoutConfig();

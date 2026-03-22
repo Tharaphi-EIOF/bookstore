@@ -12,7 +12,7 @@ async function bootstrap() {
   // and environment-driven runtime configuration all happen here.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
-  // Allow larger rich-text/blog payloads (e.g. embedded base64 images)
+  // Rich posts can still include structured editor payloads and multipart metadata.
   app.use(express.json({ limit: '20mb' }));
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 

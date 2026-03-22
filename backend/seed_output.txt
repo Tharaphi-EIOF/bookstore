@@ -1,0 +1,34 @@
+
+> bookstore-api@0.0.1 db:seed
+> ts-node prisma/seed.ts
+
+🌱 Starting database seed...
+🧹 Clearing existing data...
+👤 Creating super admin and admin users...
+👥 Creating regular users...
+👤 Creating additional users...
+🔔 Creating sample notifications...
+❌ Error seeding database: PrismaClientUnknownRequestError: 
+Invalid `prisma.notification.createMany()` invocation in
+/Users/tharaphi/Downloads/bookstore-api/backend/prisma/seed.ts:321:31
+
+  318   })),
+  319 );
+  320 if (notificationSeedData.length > 0) {
+→ 321   await prisma.notification.createMany(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(PostgresError { code: "22P02", message: "invalid input value for enum \"NotificationType\": \"SUPPORT_REPLY\"", severity: "ERROR", detail: None, column: None, hint: None }), transient: false })
+    at $n.handleRequestError (/Users/tharaphi/Downloads/bookstore-api/backend/node_modules/@prisma/client/runtime/library.js:121:7505)
+    at $n.handleAndLogRequestError (/Users/tharaphi/Downloads/bookstore-api/backend/node_modules/@prisma/client/runtime/library.js:121:6623)
+    at $n.request (/Users/tharaphi/Downloads/bookstore-api/backend/node_modules/@prisma/client/runtime/library.js:121:6307)
+    at async l (/Users/tharaphi/Downloads/bookstore-api/backend/node_modules/@prisma/client/runtime/library.js:130:9633)
+    at async main (/Users/tharaphi/Downloads/bookstore-api/backend/prisma/seed.ts:321:5) {
+  clientVersion: '5.22.0'
+}
+npm error Lifecycle script `db:seed` failed with error:
+npm error code 1
+npm error path /Users/tharaphi/Downloads/bookstore-api/backend
+npm error workspace bookstore-api@0.0.1
+npm error location /Users/tharaphi/Downloads/bookstore-api/backend
+npm error command failed
+npm error command sh -c ts-node prisma/seed.ts

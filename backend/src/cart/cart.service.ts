@@ -47,7 +47,9 @@ export class CartService {
     const format = dto.format ?? BookPurchaseFormat.PHYSICAL;
     if (format === BookPurchaseFormat.EBOOK) {
       if (!book.isDigital || !book.ebookFilePath) {
-        throw new BadRequestException('This title is not available as an eBook.');
+        throw new BadRequestException(
+          'This title is not available as an eBook.',
+        );
       }
       if (dto.quantity !== 1) {
         throw new BadRequestException('eBook quantity must be 1.');
@@ -120,7 +122,9 @@ export class CartService {
         throw new BadRequestException('eBook quantity must be 1.');
       }
       if (!book.isDigital || !book.ebookFilePath) {
-        throw new BadRequestException('This title is not available as an eBook.');
+        throw new BadRequestException(
+          'This title is not available as an eBook.',
+        );
       }
     }
 
@@ -175,9 +179,10 @@ export class CartService {
     });
   }
 
-  async getCart(
-    userId: string,
-  ): Promise<{ items: Array<CartItem & { unitPrice: number }>; totalPrice: number }> {
+  async getCart(userId: string): Promise<{
+    items: Array<CartItem & { unitPrice: number }>;
+    totalPrice: number;
+  }> {
     const cartItems = await this.prisma.cartItem.findMany({
       where: { userId },
       include: { book: true },

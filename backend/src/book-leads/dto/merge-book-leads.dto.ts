@@ -22,4 +22,3 @@ export class MergeBookLeadsDto {
   @MinLength(1, { each: true })
   duplicateLeadIds!: string[];
 }
-

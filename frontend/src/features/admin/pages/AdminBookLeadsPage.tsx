@@ -1,10 +1,9 @@
 import { FormEvent, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRightLeft, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import {
   BookLead,
   BookLeadSource,
-  BookLeadStatus,
   BookLeadWorkflowStage,
   useBookLeadDemandSummary,
   useBookLeads,
@@ -15,115 +14,29 @@ import {
   useUpdateBookLead,
 } from '@/features/admin/services/book-leads'
 import AdminSlideOverPanel from '@/components/admin/AdminSlideOverPanel'
-import ColumnVisibilityMenu from '@/components/admin/ColumnVisibilityMenu'
 import DeleteConfirmModal from '@/components/admin/DeleteConfirmModal'
 import AdminNotice from '@/components/admin/AdminNotice'
 import AdminPageIntro from '@/components/admin/AdminPageIntro'
-import AdminFilterCard from '@/components/admin/AdminFilterCard'
-import AdminPaginationFooter from '@/components/admin/AdminPaginationFooter'
-import AdminTableCard from '@/components/admin/AdminTableCard'
-import AdminIconActionButton from '@/components/admin/AdminIconActionButton'
+import AdminBookLeadsFilters from '@/features/admin/book-leads/components/AdminBookLeadsFilters'
+import AdminBookLeadsTable from '@/features/admin/book-leads/components/AdminBookLeadsTable'
+import {
+  BUTTON_DANGER,
+  CONFIDENCE_BADGE,
+  ITEMS_PER_PAGE,
+  SOURCE_OPTIONS,
+  STAGE_BADGE,
+  leadHasCatalogPrep,
+  splitCsv,
+  stageLabel,
+  stageToEditableStatus,
+  statusToStage,
+  type BookLeadSortKey,
+} from '@/features/admin/book-leads/lib/bookLeadDisplay'
 import { getErrorMessage } from '@/lib/api'
 import { hasPermission } from '@/lib/permissions'
 import { useTimedMessage } from '@/hooks/useTimedMessage'
 import { useCreatePurchaseRequest, useWarehouses } from '@/features/admin/services/warehouses'
 import { useAuthStore } from '@/store/auth.store'
-
-const ITEMS_PER_PAGE = 10
-
-const STAGE_OPTIONS: BookLeadWorkflowStage[] = ['NEW', 'IN_REVIEW', 'APPROVED', 'CLOSED', 'REJECTED']
-
-const SOURCE_OPTIONS: BookLeadSource[] = [
-  'USER_REQUEST',
-  'STAFF_IDEA',
-  'PARTNER_PITCH',
-]
-
-const COLUMN_OPTIONS = [
-  { key: 'title', label: 'Title' },
-  { key: 'author', label: 'Author' },
-  { key: 'source', label: 'Source' },
-  { key: 'demand', label: 'Demand' },
-  { key: 'confidence', label: 'Confidence' },
-  { key: 'priority', label: 'Priority' },
-  { key: 'status', label: 'Status' },
-  { key: 'actions', label: 'Actions' },
-] as const
-
-const STAGE_BADGE: Record<BookLeadWorkflowStage, string> = {
-  NEW: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
-  IN_REVIEW: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
-  APPROVED: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  CLOSED: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
-  REJECTED: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-}
-
-const CONFIDENCE_BADGE: Record<'HIGH' | 'MEDIUM' | 'LOW', string> = {
-  HIGH: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  MEDIUM: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  LOW: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-}
-
-const BUTTON_BASE =
-  'inline-flex items-center justify-center gap-2 rounded-[18px] px-4 py-2 text-xs font-semibold transition disabled:opacity-50'
-
-const BUTTON_SECONDARY =
-  `${BUTTON_BASE} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800`
-
-const BUTTON_DANGER =
-  `${BUTTON_BASE} border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300`
-
-const splitCsv = (value: string) =>
-  value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-
-const leadHasCatalogPrep = (lead: Pick<BookLead, 'procurementIsbn' | 'procurementPrice' | 'procurementCategories'>) =>
-  Boolean(lead.procurementIsbn?.trim())
-  && Number(lead.procurementPrice || 0) > 0
-  && (lead.procurementCategories?.length || 0) > 0
-
-const statusToStage = (status: BookLeadStatus): BookLeadWorkflowStage => {
-  switch (status) {
-    case 'NEW':
-      return 'NEW'
-    case 'REVIEWED':
-    case 'SOURCING':
-      return 'IN_REVIEW'
-    case 'APPROVED_TO_BUY':
-      return 'APPROVED'
-    case 'ORDERED':
-    case 'CONVERTED_TO_BOOK':
-      return 'CLOSED'
-    case 'REJECTED':
-      return 'REJECTED'
-  }
-}
-
-const stageLabel = (stage: BookLeadWorkflowStage) => {
-  switch (stage) {
-    case 'IN_REVIEW':
-      return 'In Review'
-    default:
-      return stage.charAt(0) + stage.slice(1).toLowerCase()
-  }
-}
-
-const stageToEditableStatus = (stage: BookLeadWorkflowStage): BookLeadStatus => {
-  switch (stage) {
-    case 'NEW':
-      return 'NEW'
-    case 'IN_REVIEW':
-      return 'REVIEWED'
-    case 'APPROVED':
-      return 'APPROVED_TO_BUY'
-    case 'REJECTED':
-      return 'REJECTED'
-    case 'CLOSED':
-      return 'ORDERED'
-  }
-}
 
 const AdminBookLeadsPage = () => {
   const user = useAuthStore((state) => state.user)
@@ -147,9 +60,7 @@ const AdminBookLeadsPage = () => {
   const [deletingLead, setDeletingLead] = useState<BookLead | null>(null)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false)
-  const [sortKey, setSortKey] = useState<
-    'title' | 'author' | 'source' | 'demand' | 'confidence' | 'priority' | 'status' | 'createdAt'
-  >('createdAt')
+  const [sortKey, setSortKey] = useState<BookLeadSortKey>('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [visibleColumns, setVisibleColumns] = useState({
     title: true,
@@ -261,6 +172,13 @@ const AdminBookLeadsPage = () => {
   useEffect(() => {
     setSelectedLeadIds((prev) => new Set([...prev].filter((id) => rows.some((row) => row.id === id))))
   }, [rows])
+
+  useEffect(() => {
+    if (importMutation.data) {
+      const timer = setTimeout(() => importMutation.reset(), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [importMutation.data, importMutation])
 
   const openWorkflowDrawer = (lead: BookLead, intent: 'approve' | 'convert') => {
     setWorkflowLeadId(lead.id)
@@ -429,9 +347,7 @@ const AdminBookLeadsPage = () => {
     setPage(1)
   }
 
-  const toggleSort = (
-    key: 'title' | 'author' | 'source' | 'demand' | 'confidence' | 'priority' | 'status' | 'createdAt',
-  ) => {
+  const toggleSort = (key: BookLeadSortKey) => {
     if (sortKey === key) {
       setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))
       return
@@ -469,6 +385,22 @@ const AdminBookLeadsPage = () => {
   const beginEdit = (lead: BookLead) => {
     setEditingId(lead.id)
     setEditingStage(statusToStage(lead.status))
+  }
+
+  const handleSaveEdit = async (lead: BookLead, nextStage: BookLeadWorkflowStage) => {
+    const nextStatus = stageToEditableStatus(nextStage)
+    if (nextStatus === 'APPROVED_TO_BUY' && !leadHasCatalogPrep(lead)) {
+      openWorkflowDrawer(lead, 'approve')
+      setEditingId(null)
+      return
+    }
+
+    await updateMutation.mutateAsync({
+      id: lead.id,
+      data: { status: nextStatus },
+    })
+    setEditingId(null)
+    showMessage('Lead updated.')
   }
 
   const handleDeleteLead = async () => {
@@ -604,323 +536,78 @@ const AdminBookLeadsPage = () => {
         </div>
       )}
 
-      <AdminFilterCard>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.35fr_0.85fr_0.85fr_0.85fr_auto_auto]">
-          <input
-            value={q}
-            onChange={(event) => {
-              setQ(event.target.value)
-              setPage(1)
-            }}
-            placeholder="Search title / author / note"
-            className="h-12 rounded-[20px] border border-slate-200 bg-white px-4 text-sm dark:border-slate-700 dark:bg-slate-950"
-          />
-          <select
-            value={stage}
-            onChange={(event) => {
-              setStage(event.target.value as BookLeadWorkflowStage | '')
-              setPage(1)
-            }}
-            className="h-12 rounded-[20px] border border-slate-200 bg-white px-4 text-sm dark:border-slate-700 dark:bg-slate-950"
-          >
-            <option value="">All stages</option>
-            {STAGE_OPTIONS.map((item) => (
-              <option key={item} value={item}>{stageLabel(item)}</option>
-            ))}
-          </select>
-          <select
-            value={source}
-            onChange={(event) => {
-              setSource(event.target.value as BookLeadSource | '')
-              setPage(1)
-            }}
-            className="h-12 rounded-[20px] border border-slate-200 bg-white px-4 text-sm dark:border-slate-700 dark:bg-slate-950"
-            >
-              <option value="">All sources</option>
-              {SOURCE_OPTIONS.map((item) => (
-                <option key={item} value={item}>{item}</option>
-              ))}
-            </select>
-          <input
-            value={authorFilter}
-            onChange={(event) => {
-              setAuthorFilter(event.target.value)
-              setPage(1)
-            }}
-            placeholder="Author"
-            className="h-12 rounded-[20px] border border-slate-200 bg-white px-4 text-sm dark:border-slate-700 dark:bg-slate-950"
-          />
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="h-12 rounded-[20px] border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            Reset
-          </button>
-          <ColumnVisibilityMenu
-            visibleColumns={visibleColumns}
-            setVisibleColumns={setVisibleColumns}
-            options={[...COLUMN_OPTIONS]}
-          />
-        </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <input
-            value={requestedByFilter}
-            onChange={(event) => {
-              setRequestedByFilter(event.target.value)
-              setPage(1)
-            }}
-            placeholder="Requested by"
-            className="h-12 rounded-[20px] border border-slate-200 bg-white px-4 text-sm dark:border-slate-700 dark:bg-slate-950"
-          />
-          <input
-            value={assignedToFilter}
-            onChange={(event) => {
-              setAssignedToFilter(event.target.value)
-              setPage(1)
-            }}
-            placeholder="Assigned to"
-            className="h-12 rounded-[20px] border border-slate-200 bg-white px-4 text-sm dark:border-slate-700 dark:bg-slate-950"
-          />
-          <input
-            type="date"
-            value={createdFrom}
-            onChange={(event) => {
-              setCreatedFrom(event.target.value)
-              setPage(1)
-            }}
-            className="h-12 rounded-[20px] border border-slate-200 bg-white px-4 text-sm dark:border-slate-700 dark:bg-slate-950"
-          />
-          <input
-            type="date"
-            value={createdTo}
-            onChange={(event) => {
-              setCreatedTo(event.target.value)
-              setPage(1)
-            }}
-            className="h-12 rounded-[20px] border border-slate-200 bg-white px-4 text-sm dark:border-slate-700 dark:bg-slate-950"
-          />
-        </div>
-      </AdminFilterCard>
+      <AdminBookLeadsFilters
+        q={q}
+        onQChange={(value) => {
+          setQ(value)
+          setPage(1)
+        }}
+        stage={stage}
+        onStageChange={(value) => {
+          setStage(value)
+          setPage(1)
+        }}
+        source={source}
+        onSourceChange={(value) => {
+          setSource(value)
+          setPage(1)
+        }}
+        authorFilter={authorFilter}
+        onAuthorFilterChange={(value) => {
+          setAuthorFilter(value)
+          setPage(1)
+        }}
+        requestedByFilter={requestedByFilter}
+        onRequestedByFilterChange={(value) => {
+          setRequestedByFilter(value)
+          setPage(1)
+        }}
+        assignedToFilter={assignedToFilter}
+        onAssignedToFilterChange={(value) => {
+          setAssignedToFilter(value)
+          setPage(1)
+        }}
+        createdFrom={createdFrom}
+        onCreatedFromChange={(value) => {
+          setCreatedFrom(value)
+          setPage(1)
+        }}
+        createdTo={createdTo}
+        onCreatedToChange={(value) => {
+          setCreatedTo(value)
+          setPage(1)
+        }}
+        onResetFilters={resetFilters}
+        visibleColumns={visibleColumns}
+        setVisibleColumns={setVisibleColumns}
+      />
 
-      <AdminTableCard className="overflow-x-auto">
-        <table className="admin-table min-w-full text-sm">
-          <thead className="admin-table-head">
-            <tr>
-              <th className="px-4 py-3">
-                <input
-                  type="checkbox"
-                  checked={paginatedRows.length > 0 && paginatedRows.every((row) => selectedLeadIds.has(row.id))}
-                  onChange={(event) => handleSelectAll(event.target.checked)}
-                  className="h-5 w-5 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
-                />
-              </th>
-              {visibleColumns.title && (
-                <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort('title')} className="inline-flex items-center gap-2">
-                    Title
-                    {sortKey === 'title' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                  </button>
-                </th>
-              )}
-              {visibleColumns.author && (
-                <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort('author')} className="inline-flex items-center gap-2">
-                    Author
-                    {sortKey === 'author' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                  </button>
-                </th>
-              )}
-              {visibleColumns.source && (
-                <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort('source')} className="inline-flex items-center gap-2">
-                    Source
-                    {sortKey === 'source' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                  </button>
-                </th>
-              )}
-              {visibleColumns.demand && (
-                <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort('demand')} className="inline-flex items-center gap-2">
-                    Demand
-                    {sortKey === 'demand' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                  </button>
-                </th>
-              )}
-              {visibleColumns.confidence && (
-                <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort('confidence')} className="inline-flex items-center gap-2">
-                    Confidence
-                    {sortKey === 'confidence' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                  </button>
-                </th>
-              )}
-              {visibleColumns.priority && (
-                <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort('priority')} className="inline-flex items-center gap-2">
-                    Priority
-                    {sortKey === 'priority' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                  </button>
-                </th>
-              )}
-              {visibleColumns.status && (
-                <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort('status')} className="inline-flex items-center gap-2">
-                    Status
-                    {sortKey === 'status' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                  </button>
-                </th>
-              )}
-              {visibleColumns.actions && <th className="px-4 py-3">Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedRows.map((row) => (
-              <tr key={row.id} className={`align-top ${row.deletedAt ? 'opacity-75' : ''}`}>
-                <td className="px-4 py-4">
-                  <input
-                    type="checkbox"
-                    checked={selectedLeadIds.has(row.id)}
-                    onChange={(event) => toggleLeadSelection(row.id, event.target.checked)}
-                    className="mt-1 h-5 w-5 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
-                  />
-                </td>
-                {visibleColumns.title && (
-                  <td className="px-4 py-4">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedLeadId(row.id)}
-                      className="text-left text-[1.05rem] font-semibold tracking-tight underline decoration-dotted underline-offset-4 hover:text-cyan-700 dark:hover:text-cyan-300"
-                    >
-                      {row.title}
-                    </button>
-                    {row.note && (
-                      <p
-                        className="mt-1 max-w-xl overflow-hidden text-xs leading-6 text-slate-500"
-                        style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}
-                      >
-                        {row.note}
-                      </p>
-                    )}
-                  </td>
-                )}
-                {visibleColumns.author && (
-                  <td className="px-4 py-4 text-[15px] text-slate-700 dark:text-slate-200">{row.author}</td>
-                )}
-                {visibleColumns.source && (
-                  <td className="px-4 py-4 text-[15px] text-slate-600 dark:text-slate-300">{row.source}</td>
-                )}
-                {visibleColumns.demand && (
-                  <td className="px-4 py-4 text-[15px] text-slate-900 dark:text-slate-100">{row.demandCount ?? 1}</td>
-                )}
-                {visibleColumns.confidence && (
-                  <td className="px-4 py-4">
-                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${CONFIDENCE_BADGE[row.confidenceBand || 'LOW']}`}>
-                      {row.confidenceBand || 'LOW'} ({row.confidenceScore ?? 0})
-                    </span>
-                  </td>
-                )}
-                {visibleColumns.priority && (
-                  <td className="px-4 py-4 text-[15px] text-slate-900 dark:text-slate-100">{row.priority}</td>
-                )}
-                {visibleColumns.status && (
-                  <td className="px-4 py-4">
-                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${STAGE_BADGE[statusToStage(row.status)]}`}>
-                      {stageLabel(statusToStage(row.status))}
-                    </span>
-                  </td>
-                )}
-                {visibleColumns.actions && (
-                  <td className="px-4 py-4">
-                    {editingId === row.id ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <select
-                          value={editingStage}
-                          onChange={(event) => setEditingStage(event.target.value as BookLeadWorkflowStage)}
-                          className="rounded-[18px] border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950"
-                        >
-                          {STAGE_OPTIONS.filter((item) => item !== 'CLOSED').map((item) => (
-                            <option key={item} value={item}>
-                              {stageLabel(item)}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          disabled={updateMutation.isPending}
-                          onClick={() => {
-                            void (async () => {
-                              const nextStatus = stageToEditableStatus(editingStage)
-                              if (nextStatus === 'APPROVED_TO_BUY' && !leadHasCatalogPrep(row)) {
-                                openWorkflowDrawer(row, 'approve')
-                                setEditingId(null)
-                                return
-                              }
-                              try {
-                                await updateMutation.mutateAsync({
-                                  id: row.id,
-                                  data: { status: nextStatus },
-                                })
-                                setEditingId(null)
-                                showMessage('Lead updated.')
-                              } catch (error) {
-                                showMessage(getErrorMessage(error))
-                              }
-                            })()
-                          }}
-                          className="rounded-[18px] bg-slate-900 px-3 py-2 text-xs font-semibold text-white dark:bg-slate-200 dark:text-slate-900"
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingId(null)}
-                          className={BUTTON_SECONDARY}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <AdminIconActionButton
-                          label="Update lead"
-                          icon={<Pencil className="h-4 w-4" />}
-                          onClick={() => beginEdit(row)}
-                        />
-                        {!row.deletedAt && row.status !== 'CONVERTED_TO_BOOK' && (
-                          <AdminIconActionButton
-                            label="Convert lead"
-                            icon={<ArrowRightLeft className="h-4 w-4" />}
-                            variant="success"
-                            onClick={() => openWorkflowDrawer(row, 'convert')}
-                          />
-                        )}
-                        <AdminIconActionButton
-                          label="Delete lead"
-                          icon={<Trash2 className="h-4 w-4" />}
-                          variant="danger"
-                          onClick={() => setDeletingLead(row)}
-                        />
-                      </div>
-                    )}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {listQuery.isLoading && <p className="px-3 py-6 text-sm text-slate-500">Loading leads...</p>}
-        {!listQuery.isLoading && rows.length === 0 && (
-          <p className="px-3 py-6 text-sm text-slate-500">No book leads found for this filter.</p>
-        )}
-
-        <AdminPaginationFooter
-          page={page}
-          totalPages={totalPages}
-          onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
-          onNext={() => setPage((prev) => prev + 1)}
-        />
-      </AdminTableCard>
+      <AdminBookLeadsTable
+        rows={paginatedRows}
+        visibleColumns={visibleColumns}
+        selectedLeadIds={selectedLeadIds}
+        editingId={editingId}
+        editingStage={editingStage}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        isLoading={listQuery.isLoading}
+        isUpdating={updateMutation.isPending}
+        page={page}
+        totalPages={totalPages}
+        onToggleSort={toggleSort}
+        onToggleLeadSelection={toggleLeadSelection}
+        onSelectAll={handleSelectAll}
+        onSelectLead={setSelectedLeadId}
+        onEditingStageChange={setEditingStage}
+        onBeginEdit={beginEdit}
+        onCancelEdit={() => setEditingId(null)}
+        onOpenWorkflowDrawer={openWorkflowDrawer}
+        onDeleteLead={setDeletingLead}
+        onSaveEdit={handleSaveEdit}
+        onPrevPage={() => setPage((prev) => Math.max(1, prev - 1))}
+        onNextPage={() => setPage((prev) => prev + 1)}
+        showMessage={showMessage}
+      />
 
       {selectedLead && (
         <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-5 shadow-sm dark:border-cyan-900/40 dark:bg-cyan-950/20">

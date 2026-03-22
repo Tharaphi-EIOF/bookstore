@@ -166,7 +166,7 @@ export class NotificationsService {
     const result = await this.prisma.notification.createMany({
       data: users.map((user) => ({
         userId: user.id,
-        type: 'announcement',
+        type: NotificationType.ANNOUNCEMENT,
         title: input.title,
         message: input.message,
         link: input.link,

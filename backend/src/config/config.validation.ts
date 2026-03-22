@@ -24,7 +24,9 @@ export const configValidationSchema = Joi.object({
     .description('Optional Clerk JWT public key for offline verification'),
   CLERK_AUTHORIZED_PARTIES: Joi.string()
     .optional()
-    .description('Comma-separated list of allowed frontend origins for Clerk tokens'),
+    .description(
+      'Comma-separated list of allowed frontend origins for Clerk tokens',
+    ),
 
   // Server Configuration
   PORT: Joi.number().port().default(3000).description('Server port number'),

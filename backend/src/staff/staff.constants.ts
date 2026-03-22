@@ -2,6 +2,8 @@ export const STAFF_USER_BASIC_SELECT = {
   id: true,
   name: true,
   email: true,
+  avatarType: true,
+  avatarValue: true,
 } as const;
 
 export const STAFF_USER_WITH_ROLE_SELECT = {

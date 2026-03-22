@@ -1,8 +1,10 @@
+import { lazy, Suspense } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import ScrollProgressBar from '@/components/ui/ScrollProgressBar'
-import SupportChatLauncher from '@/features/support/components/SupportChatLauncher'
+
+const SupportChatLauncher = lazy(() => import('@/features/support/components/SupportChatLauncher'))
 
 const Layout = () => {
   const location = useLocation()
@@ -18,7 +20,9 @@ const Layout = () => {
         <Outlet />
       </main>
       {/* Global support entry point for the storefront experience. */}
-      <SupportChatLauncher />
+      <Suspense fallback={null}>
+        <SupportChatLauncher />
+      </Suspense>
       {!isWriterRoute && (
         <div
           aria-hidden

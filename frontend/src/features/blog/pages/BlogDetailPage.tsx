@@ -579,11 +579,28 @@ const BlogDetailPage = () => {
             >
               {hasPaperPresentation ? (
                 <div className="mx-auto max-w-2xl">
-                  <div className="border-l border-slate-200 pl-6 text-[18px] leading-9 tracking-[0.01em] text-slate-700 dark:border-slate-700 dark:text-slate-300">
-                    <div
-                      className="[&_blockquote]:!my-5 [&_h1]:!my-6 [&_h2]:!my-5 [&_p]:!my-0"
-                      dangerouslySetInnerHTML={{ __html: renderStoredContentHtml(blog.content) }}
-                    />
+                  {/* Plain poem view keeps the poem title and signature visible. */}
+                  <div className="text-slate-700 dark:text-slate-300">
+                    <header className="pb-10 text-center">
+                      <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl">
+                        {blog.title}
+                      </h1>
+                      {blog.subtitle && <p className="mt-3 text-sm opacity-75 sm:text-base">{blog.subtitle}</p>}
+                    </header>
+                    <div className="border-l border-slate-200 pl-6 text-[18px] leading-9 tracking-[0.01em] dark:border-slate-700">
+                      <div
+                        className="[&_blockquote]:!my-5 [&_h1]:!my-6 [&_h2]:!my-5 [&_p]:!my-0"
+                        dangerouslySetInnerHTML={{ __html: renderStoredContentHtml(blog.content) }}
+                      />
+                    </div>
+                    <footer className="mt-12 flex justify-end text-right">
+                      <Link
+                        to={`/user/${blog.author.id}`}
+                        className="text-base font-semibold opacity-85 transition hover:opacity-100"
+                      >
+                        {poemSignature}
+                      </Link>
+                    </footer>
                   </div>
                 </div>
               ) : (

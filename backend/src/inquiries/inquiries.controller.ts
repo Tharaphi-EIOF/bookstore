@@ -53,8 +53,7 @@ export class InquiriesController {
 
   @Get('overview')
   @ApiOperation({
-    summary:
-      'Admin overview of inquiry workflow and staff solve performance',
+    summary: 'Admin overview of inquiry workflow and staff solve performance',
   })
   getOverview(
     @Request() req: AuthenticatedRequest,

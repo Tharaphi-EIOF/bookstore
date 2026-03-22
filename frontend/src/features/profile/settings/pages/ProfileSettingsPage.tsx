@@ -8,6 +8,7 @@ import {
   LockKeyhole,
   MapPin,
   Shuffle,
+  Upload,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import ProfileAccountHubSection from '@/features/profile/settings/components/ProfileAccountHubSection'
@@ -720,21 +721,35 @@ const ProfileSettingsPage = () => {
                         </div>
                       </>
                     ) : (
-                      <div className="mt-4 rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-300">
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          onChange={(event) =>
-                            void handleImageUpload(
-                              event,
-                              uploadAvatarMutation.mutateAsync,
-                              (url) => setAvatarValue(url),
-                              'Avatar',
-                            )
-                          }
-                          disabled={uploadAvatarMutation.isPending}
-                        />
-                        {uploadAvatarMutation.isPending ? <p className="mt-2 text-xs text-slate-500">Uploading avatar...</p> : null}
+                      <div className="mt-4 flex flex-col items-center">
+                        <div className="relative group">
+                          <Avatar
+                            avatarType="upload"
+                            avatarValue={avatarValue.includes('/') ? avatarValue : undefined}
+                            size="xl"
+                            className="border-2 border-slate-200 dark:border-slate-800"
+                          />
+                          <label className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition rounded-full cursor-pointer">
+                            <Upload className="h-6 w-6" />
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(event) =>
+                                void handleImageUpload(
+                                  event,
+                                  uploadAvatarMutation.mutateAsync,
+                                  (url) => setAvatarValue(url),
+                                  'Avatar',
+                                )
+                              }
+                              disabled={uploadAvatarMutation.isPending}
+                            />
+                          </label>
+                        </div>
+                        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                          {uploadAvatarMutation.isPending ? 'Uploading avatar...' : 'Click to upload a new profile picture'}
+                        </p>
                       </div>
                     )}
                   </div>

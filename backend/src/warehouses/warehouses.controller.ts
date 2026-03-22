@@ -452,7 +452,8 @@ export class WarehousesController {
   @Post('purchase-orders/:id/reorder')
   @Permissions('warehouse.purchase_order.create')
   @ApiOperation({
-    summary: 'Create a new draft purchase order by copying a previous vendor order',
+    summary:
+      'Create a new draft purchase order by copying a previous vendor order',
   })
   reorderPurchaseOrder(
     @Request() req: { user: { sub: string } },

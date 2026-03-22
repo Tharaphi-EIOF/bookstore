@@ -52,7 +52,11 @@ export class StaffRolesService {
       'department.create',
       'department',
       department.id,
-      this.internal.buildCreateAuditChanges('department', department, `Created department ${department.name}.`),
+      this.internal.buildCreateAuditChanges(
+        'department',
+        department,
+        `Created department ${department.name}.`,
+      ),
     );
 
     return department;
@@ -113,7 +117,11 @@ export class StaffRolesService {
       'department.delete',
       'department',
       id,
-      this.internal.buildDeleteAuditChanges('department', department, `Deleted department ${department.name}.`),
+      this.internal.buildDeleteAuditChanges(
+        'department',
+        department,
+        `Deleted department ${department.name}.`,
+      ),
     );
     return department;
   }
@@ -204,7 +212,11 @@ export class StaffRolesService {
       'staffRole.create',
       'staffRole',
       role.id,
-      this.internal.buildCreateAuditChanges('staff role', role, `Created staff role ${role.name}.`),
+      this.internal.buildCreateAuditChanges(
+        'staff role',
+        role,
+        `Created staff role ${role.name}.`,
+      ),
     );
 
     return role;
@@ -290,7 +302,11 @@ export class StaffRolesService {
       'staffRole.delete',
       'staffRole',
       id,
-      this.internal.buildDeleteAuditChanges('staff role', role, `Deleted staff role ${role.name}.`),
+      this.internal.buildDeleteAuditChanges(
+        'staff role',
+        role,
+        `Deleted staff role ${role.name}.`,
+      ),
     );
 
     return role;

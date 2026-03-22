@@ -286,6 +286,41 @@ const useEpubReader = ({
     setEpubSelectionActionAnchor(null)
   }, [])
 
+  const resolveInitialDisplayTarget = useCallback(async (book: any) => {
+    if (initialLocationCfi) return initialLocationCfi
+
+    const spineItems = (book?.spine?.spineItems ?? []) as any[]
+    if (!spineItems.length) return undefined
+
+    for (const item of spineItems.slice(0, 8)) {
+      try {
+        const section = typeof book.spine?.get === 'function' ? book.spine.get(item.index) : item
+        if (!section) continue
+        await section.load(book.load?.bind(book))
+        const rawText = section.document?.body?.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+        const lowerHref = String(section.href ?? item.href ?? '').toLowerCase()
+        const lowerText = rawText.toLowerCase()
+        section.unload?.()
+
+        const isFrontMatter =
+          lowerHref.includes('cover')
+          || lowerHref.includes('titlepage')
+          || lowerText.startsWith('books by ')
+          || lowerText.includes('table of contents')
+          || lowerText === ''
+
+        if (isFrontMatter) continue
+        if (rawText.length < 280) continue
+
+        return section.href || item.href
+      } catch {
+        // keep scanning for the first readable section
+      }
+    }
+
+    return undefined
+  }, [initialLocationCfi])
+
   const handleEpubWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     if (!renditionRef.current) return
     const now = Date.now()
@@ -358,7 +393,8 @@ const useEpubReader = ({
           }, 0)
         })
 
-        await rendition.display(initialLocationCfi)
+        const initialTarget = await resolveInitialDisplayTarget(book)
+        await rendition.display(initialTarget)
         syncRenderedTypography()
 
         try {
@@ -487,6 +523,7 @@ const useEpubReader = ({
     queueProgressSave,
     readerStageRef,
     resolvedAssetUrl,
+    resolveInitialDisplayTarget,
     setFormatOverride,
     setPageInput,
     settings.pageView,

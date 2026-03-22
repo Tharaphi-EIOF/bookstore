@@ -67,6 +67,7 @@ describe('BooksService', () => {
             description: fc.option(fc.string({ maxLength: 500 }), {
               nil: undefined,
             }),
+            categories: fc.array(fc.constant('Fiction'), { minLength: 1, maxLength: 1 }),
           }),
           async (bookData: CreateBookDto) => {
             // Arrange: Mock successful book creation
@@ -559,6 +560,7 @@ describe('BooksService', () => {
             description: fc.option(fc.string({ maxLength: 500 }), {
               nil: undefined,
             }),
+            categories: fc.array(fc.constant('Fiction'), { minLength: 1, maxLength: 1 }),
           }),
           async (bookData) => {
             // Arrange: Mock book with zero stock
@@ -601,6 +603,7 @@ describe('BooksService', () => {
           price: 29.99,
           stock: 10,
           description: 'Test description',
+          categories: ['Fiction'],
         };
 
         const mockBook = {
@@ -758,9 +761,7 @@ describe('BooksService', () => {
         (prismaService.book.findUnique as jest.Mock).mockResolvedValue(
           existingBook,
         );
-        (prismaService.book.update as jest.Mock).mockResolvedValue(
-          trashedBook,
-        );
+        (prismaService.book.update as jest.Mock).mockResolvedValue(trashedBook);
 
         // Act
         const result = await service.remove(bookId);
@@ -1001,6 +1002,7 @@ describe('BooksService', () => {
             price: 29.99,
             stock: 0,
             description: 'Test description',
+            categories: ['Fiction'],
           };
 
           const mockBook = {
@@ -1030,6 +1032,7 @@ describe('BooksService', () => {
             price: 29.99,
             stock: 3,
             description: 'Test description',
+            categories: ['Fiction'],
           };
 
           const mockBook = {
@@ -1059,6 +1062,7 @@ describe('BooksService', () => {
             price: 29.99,
             stock: 10,
             description: 'Test description',
+            categories: ['Fiction'],
           };
 
           const mockBook = {

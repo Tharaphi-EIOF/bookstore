@@ -35,7 +35,10 @@ export class CreatePromotionDto {
   @MaxLength(400)
   description?: string;
 
-  @ApiProperty({ enum: PromotionDiscountType, example: PromotionDiscountType.PERCENT })
+  @ApiProperty({
+    enum: PromotionDiscountType,
+    example: PromotionDiscountType.PERCENT,
+  })
   @IsEnum(PromotionDiscountType)
   discountType!: PromotionDiscountType;
 

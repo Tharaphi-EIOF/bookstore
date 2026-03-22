@@ -1,6 +1,4 @@
-import {
-  BadRequestException,
-} from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import {
   InventoryLocationType,
   InventoryLotSourceType,
@@ -156,7 +154,9 @@ export const allocateInventoryLots = async (
   }
 
   if (remaining > 0) {
-    throw new BadRequestException('Insufficient lot-level inventory available.');
+    throw new BadRequestException(
+      'Insufficient lot-level inventory available.',
+    );
   }
 
   return allocations;

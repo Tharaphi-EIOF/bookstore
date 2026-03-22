@@ -11,46 +11,46 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 
 const INBOX_BY_TYPE: Record<ContactType, string> = {
-  support: 'support@bookstore.local',
-  author: 'authors@bookstore.local',
-  publisher: 'publishers@bookstore.local',
-  business: 'business@bookstore.local',
-  legal: 'legal@bookstore.local',
+  SUPPORT: 'support@bookstore.local',
+  AUTHOR: 'authors@bookstore.local',
+  PUBLISHER: 'publishers@bookstore.local',
+  BUSINESS: 'business@bookstore.local',
+  LEGAL: 'legal@bookstore.local',
 };
 
 const AUTO_REPLY_BY_TYPE: Record<ContactType, string> = {
-  support:
+  SUPPORT:
     'Thanks for reaching out. Our support team will get back to you within 24–48 hours.',
-  author:
+  AUTHOR:
     'Thanks for getting in touch. We usually respond within 2–3 business days.',
-  publisher:
+  PUBLISHER:
     'Thanks for contacting us. Our publishing team will respond shortly.',
-  business: 'Thanks for reaching out. Our business team will follow up soon.',
-  legal: 'Thanks for your message. Our legal/technical team will respond soon.',
+  BUSINESS: 'Thanks for reaching out. Our business team will follow up soon.',
+  LEGAL: 'Thanks for your message. Our legal/technical team will respond soon.',
 };
 
 const DEPARTMENT_CODE_BY_CONTACT_TYPE: Record<ContactType, string> = {
-  support: 'CS',
-  author: 'CS',
-  publisher: 'CS',
-  business: 'FIN',
-  legal: 'FIN',
+  SUPPORT: 'CS',
+  AUTHOR: 'CS',
+  PUBLISHER: 'CS',
+  BUSINESS: 'FIN',
+  LEGAL: 'FIN',
 };
 
 const DEPARTMENT_FALLBACKS_BY_CONTACT_TYPE: Record<ContactType, string[]> = {
-  support: ['CS', 'SUPPORT', 'CUSTOMER_SERVICE', 'CUSTOMER SUPPORT'],
-  author: ['CS', 'SUPPORT', 'CUSTOMER_SERVICE', 'CUSTOMER SUPPORT'],
-  publisher: ['CS', 'SUPPORT', 'CUSTOMER_SERVICE', 'CUSTOMER SUPPORT'],
-  business: ['FIN', 'FINANCE', 'ACCOUNTING'],
-  legal: ['FIN', 'FINANCE', 'LEGAL'],
+  SUPPORT: ['CS', 'SUPPORT', 'CUSTOMER_SERVICE', 'CUSTOMER SUPPORT'],
+  AUTHOR: ['CS', 'SUPPORT', 'CUSTOMER_SERVICE', 'CUSTOMER SUPPORT'],
+  PUBLISHER: ['CS', 'SUPPORT', 'CUSTOMER_SERVICE', 'CUSTOMER SUPPORT'],
+  BUSINESS: ['FIN', 'FINANCE', 'ACCOUNTING'],
+  LEGAL: ['FIN', 'FINANCE', 'LEGAL'],
 };
 
 const INQUIRY_TYPE_BY_CONTACT_TYPE: Record<ContactType, InquiryType> = {
-  support: 'other',
-  author: 'author',
-  publisher: 'author',
-  business: 'payment',
-  legal: 'legal',
+  SUPPORT: InquiryType.OTHER,
+  AUTHOR: InquiryType.AUTHOR,
+  PUBLISHER: InquiryType.AUTHOR,
+  BUSINESS: InquiryType.PAYMENT,
+  LEGAL: InquiryType.LEGAL,
 };
 
 @Injectable()
@@ -129,7 +129,8 @@ export class ContactService {
       const code = department.code.toLowerCase();
       const name = department.name.toLowerCase();
       return normalizedTokens.some(
-        (token) => code === token || code.includes(token) || name.includes(token),
+        (token) =>
+          code === token || code.includes(token) || name.includes(token),
       );
     });
 
@@ -160,7 +161,9 @@ export class ContactService {
     ];
 
     const queuePermissionKeys =
-      type === 'support' || type === 'author' || type === 'publisher'
+      type === ContactType.SUPPORT ||
+      type === ContactType.AUTHOR ||
+      type === ContactType.PUBLISHER
         ? supportQueuePermissions
         : financeQueuePermissions;
 
@@ -237,7 +240,7 @@ export class ContactService {
   }
 
   private inferInquiryType(dto: CreateContactDto): InquiryType {
-    if (dto.type !== 'support') {
+    if (dto.type !== ContactType.SUPPORT) {
       return INQUIRY_TYPE_BY_CONTACT_TYPE[dto.type];
     }
 
@@ -249,9 +252,7 @@ export class ContactService {
       metadata.language,
       metadata.requestReason,
       metadata.format,
-    ].some(
-      (value) => typeof value === 'string' && value.trim().length > 0,
-    );
+    ].some((value) => typeof value === 'string' && value.trim().length > 0);
 
     const normalizedSubject = dto.subject?.trim().toLowerCase() ?? '';
     const normalizedMessage = dto.message.trim().toLowerCase();
@@ -261,7 +262,7 @@ export class ContactService {
       normalizedMessage.includes('book availability request');
 
     if (hasStockMetadata || looksLikeStockRequest) {
-      return InquiryType.stock;
+      return InquiryType.STOCK;
     }
 
     return INQUIRY_TYPE_BY_CONTACT_TYPE[dto.type];
@@ -276,7 +277,7 @@ export class ContactService {
         subject: dto.subject,
         message: dto.message,
         metadata: dto.metadata,
-        status: 'new',
+        status: 'NEW',
       },
     });
 
@@ -342,7 +343,7 @@ export class ContactService {
           tx,
           {
             departmentId: targetDepartmentId,
-            type: 'inquiry_created',
+            type: 'INQUIRY_CREATED',
             relatedEntityId: inquiry.id,
             title: 'New inquiry from contact form',
             message: dto.subject || 'Contact inquiry submitted',
@@ -356,7 +357,7 @@ export class ContactService {
     if (inquiryCreator?.isLinkedUser && createdInquiryId) {
       await this.notificationsService.createUserNotification({
         userId: inquiryCreator.id,
-        type: 'inquiry_update',
+        type: 'INQUIRY_UPDATE',
         title: 'Inquiry received',
         message:
           'We received your inquiry and routed it to our staff. You will get an update soon.',

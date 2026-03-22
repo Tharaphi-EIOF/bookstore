@@ -19,4 +19,3 @@ export class ImportBookLeadsFromInquiriesDto {
   @Max(5)
   defaultPriority?: number;
 }
-

@@ -11,6 +11,7 @@ import {
   InquirySenderType,
   InquiryStatus,
   InquiryType,
+  NotificationType,
   Prisma,
   type Role,
 } from '@prisma/client';
@@ -95,35 +96,35 @@ const DEFAULT_QUICK_REPLY_TEMPLATES: Array<{
     id: 'order_delivery_delay',
     title: 'Delivery Delay Update',
     body: 'We checked your order and confirmed there is a delivery delay. We are coordinating with logistics and will send your next update within 24 hours.',
-    type: InquiryType.order,
+    type: InquiryType.ORDER,
     tags: ['delivery'],
   },
   {
     id: 'payment_refund_in_progress',
     title: 'Refund In Progress',
     body: 'Your refund request is now in progress with our finance team. We will notify you once processing is complete and share the transaction reference.',
-    type: InquiryType.payment,
+    type: InquiryType.PAYMENT,
     tags: ['refund'],
   },
   {
     id: 'author_handoff',
     title: 'Author Team Handoff',
     body: 'Thank you for your inquiry. We have forwarded this to our author support team and they will follow up with you shortly.',
-    type: InquiryType.author,
+    type: InquiryType.AUTHOR,
     tags: ['handoff'],
   },
   {
     id: 'stock_check_started',
     title: 'Stock Check Started',
     body: 'We are checking current stock availability with our warehouse team. We will update you as soon as confirmation is complete.',
-    type: InquiryType.stock,
+    type: InquiryType.STOCK,
     tags: ['inventory'],
   },
   {
     id: 'legal_review_started',
     title: 'Legal Review Started',
     body: 'Your request has been escalated to our legal review team. We will share an update as soon as their review is complete.',
-    type: InquiryType.legal,
+    type: InquiryType.LEGAL,
     tags: ['escalation'],
   },
 ];
@@ -399,7 +400,7 @@ export class InquiriesService {
         tx,
         {
           departmentId: supportDepartment.id,
-          type: 'inquiry_created',
+          type: NotificationType.INQUIRY_CREATED,
           relatedEntityId: created.id,
           title: 'New inquiry in Customer Support queue',
           message: dto.subject,
@@ -563,7 +564,7 @@ export class InquiriesService {
         if (inquiry.assignedToStaff?.userId) {
           await this.notificationsService.createUserNotification({
             userId: inquiry.assignedToStaff.userId,
-            type: 'inquiry_reply',
+            type: NotificationType.INQUIRY_REPLY,
             title: 'Customer replied to inquiry',
             message: inquiry.subject,
             link: `/admin/inquiries/${inquiry.id}`,
@@ -573,7 +574,7 @@ export class InquiriesService {
             tx,
             {
               departmentId: inquiry.departmentId,
-              type: 'inquiry_reply',
+              type: NotificationType.INQUIRY_REPLY,
               relatedEntityId: inquiry.id,
               title: 'New customer reply in department queue',
               message: inquiry.subject,
@@ -584,7 +585,7 @@ export class InquiriesService {
       } else {
         await this.notificationsService.createUserNotification({
           userId: inquiry.createdByUserId,
-          type: 'inquiry_reply',
+          type: NotificationType.INQUIRY_REPLY,
           title: 'Staff replied to your inquiry',
           message: inquiry.subject,
           link: `/inquiries/${inquiry.id}`,
@@ -708,7 +709,7 @@ export class InquiriesService {
 
       await this.notificationsService.createUserNotification({
         userId: assignee.userId,
-        type: 'inquiry_assigned',
+        type: NotificationType.INQUIRY_ASSIGNED,
         title: 'Inquiry assigned to you',
         message: inquiry.subject,
         link: `/admin/inquiries/${inquiry.id}`,
@@ -779,7 +780,7 @@ export class InquiriesService {
         tx,
         {
           departmentId: dto.toDepartmentId,
-          type: 'inquiry_escalated',
+          type: NotificationType.INQUIRY_ESCALATED,
           relatedEntityId: inquiry.id,
           title: 'Escalated inquiry in your queue',
           message: inquiry.subject,
@@ -906,7 +907,10 @@ export class InquiriesService {
       await Promise.all([
         this.prisma.inquiry.count({ where: whereForWindow }),
         this.prisma.inquiry.count({
-          where: this.buildWorkflowCountsWhere(whereForWindow, unresolvedStatuses),
+          where: this.buildWorkflowCountsWhere(
+            whereForWindow,
+            unresolvedStatuses,
+          ),
         }),
         this.prisma.inquiry.count({
           where: this.buildWorkflowCountsWhere(whereForWindow, solvedStatuses),
@@ -992,8 +996,10 @@ export class InquiriesService {
 
     const staffPerformance = Array.from(staffMap.values())
       .sort((a, b) => {
-        if (b.solvedCount !== a.solvedCount) return b.solvedCount - a.solvedCount;
-        if (b.activeCount !== a.activeCount) return b.activeCount - a.activeCount;
+        if (b.solvedCount !== a.solvedCount)
+          return b.solvedCount - a.solvedCount;
+        if (b.activeCount !== a.activeCount)
+          return b.activeCount - a.activeCount;
         return a.staffName.localeCompare(b.staffName);
       })
       .slice(0, 12);
@@ -1060,7 +1066,10 @@ export class InquiriesService {
     );
   }
 
-  async createQuickReplyTemplate(user: AuthUser, dto: CreateInquiryTemplateDto) {
+  async createQuickReplyTemplate(
+    user: AuthUser,
+    dto: CreateInquiryTemplateDto,
+  ) {
     const actor = await this.getActorContext(user);
     this.ensureAnyPermission(actor, [
       'support.inquiries.assign',

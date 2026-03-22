@@ -1,9 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  ArrayMinSize,
-  IsArray,
-  IsString,
-} from 'class-validator';
+import { ArrayMinSize, IsArray, IsString } from 'class-validator';
 
 export class GrantPromotionDto {
   @ApiProperty({ type: [String] })

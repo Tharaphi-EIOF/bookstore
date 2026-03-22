@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
@@ -9,7 +10,8 @@ import { canAccessAdmin } from '@/lib/permissions'
 import Logo from "@/components/ui/Logo";
 import Avatar from '@/features/profile/shared/components/Avatar'
 import { useTheme } from '@/hooks/useTheme'
-import NotificationBell from './NotificationBell'
+
+const NotificationBell = lazy(() => import('./NotificationBell'))
 
 const Navbar = () => {
   const { user, isAuthenticated } = useAuthStore()
@@ -404,12 +406,6 @@ const Navbar = () => {
                       >
                         Reading Insights
                       </Link>
-                      <Link
-                        to="/rewards"
-                        className={`mt-1 ${menuItemClass(isActive('/rewards'))}`}
-                      >
-                        Points Club
-                      </Link>
                     </div>
                   </div>
                 )}
@@ -523,7 +519,9 @@ const Navbar = () => {
                   </Link>
                 )}
 
-                <NotificationBell />
+                <Suspense fallback={null}>
+                  <NotificationBell />
+                </Suspense>
 
                 {/* User menu */}
                 <div className="flex items-center space-x-3">

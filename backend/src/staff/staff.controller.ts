@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
+  PayrollStatus,
   StaffStatus,
   StaffTaskPriority,
   StaffTaskStatus,
@@ -33,6 +34,7 @@ import { HireExistingUserDto } from './dto/hire-existing-user.dto';
 import { CreateStaffAccountDto } from './dto/create-staff-account.dto';
 import { UpdateStaffAccountAccessDto } from './dto/update-staff-account-access.dto';
 import { StaffService } from './staff.service';
+import { StaffPayrollService } from './staff-payroll.service';
 
 type AuthenticatedRequest = {
   user: {
@@ -230,7 +232,9 @@ export class StaffAdminController {
 
   @Get('audit-logs')
   @Permissions('admin.permission.manage')
-  @ApiOperation({ summary: 'List admin audit logs across staff and operational actions' })
+  @ApiOperation({
+    summary: 'List admin audit logs across staff and operational actions',
+  })
   listAuditLogs(
     @Req() req: AuthenticatedRequest,
     @Query('actorUserId') actorUserId?: string,
@@ -384,3 +388,51 @@ export class StaffAdminController {
     return this.staffService.listStaffAuditLogs(id, parsedLimit, req.user.sub);
   }
 }
+
+@ApiTags('admin-payroll')
+@Controller('admin/payroll')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@ApiBearerAuth('JWT-auth')
+export class StaffPayrollAdminController {
+  constructor(private readonly payrollService: StaffPayrollService) {}
+
+  @Get()
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'List all payrolls' })
+  listPayrolls(
+    @Query('staffId') staffId?: string,
+    @Query('status') status?: PayrollStatus,
+    @Query('departmentId') departmentId?: string,
+  ) {
+    return this.payrollService.listPayrolls({ staffId, status, departmentId });
+  }
+
+  @Post('generate')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Generate monthly payroll for staff' })
+  generatePayroll(
+    @Body('staffId') staffId: string,
+    @Body('month') month: number,
+    @Body('year') year: number,
+  ) {
+    return this.payrollService.generateMonthlyPayroll(staffId, month, year);
+  }
+
+  @Get(':id')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Get payroll detail' })
+  getPayroll(@Param('id') id: string) {
+    return this.payrollService.getPayroll(id);
+  }
+
+  @Patch(':id')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Update payroll status or info' })
+  updatePayroll(
+    @Param('id') id: string,
+    @Body() data: { status?: PayrollStatus; bonus?: number; deductions?: number; note?: string },
+  ) {
+    return this.payrollService.updatePayroll(id, data);
+  }
+}
+

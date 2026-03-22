@@ -184,20 +184,14 @@ export class BookLeadsController {
   @Delete(':id')
   @Permissions('finance.reports.view')
   @ApiOperation({ summary: 'Move a book lead to bin' })
-  remove(
-    @Request() req: { user: { sub: string } },
-    @Param('id') id: string,
-  ) {
+  remove(@Request() req: { user: { sub: string } }, @Param('id') id: string) {
     return this.bookLeadsService.remove(req.user.sub, id);
   }
 
   @Patch(':id/restore')
   @Permissions('finance.reports.view')
   @ApiOperation({ summary: 'Restore a soft-deleted book lead from bin' })
-  restore(
-    @Request() req: { user: { sub: string } },
-    @Param('id') id: string,
-  ) {
+  restore(@Request() req: { user: { sub: string } }, @Param('id') id: string) {
     return this.bookLeadsService.restore(req.user.sub, id);
   }
 

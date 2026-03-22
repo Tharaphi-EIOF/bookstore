@@ -61,6 +61,7 @@ const navItems: NavItem[] = [
   { name: 'Audit Log', path: '/admin/staff/audit-logs', icon: ListChecks, section: 'people', group: 'Access', permission: 'admin.permission.manage' },
   { name: 'Staff Tasks', path: '/admin/staff/tasks', icon: ListTodo, section: 'people', group: 'Workforce', permission: ['staff.view', 'hr.performance.manage'], requireAll: true },
   { name: 'Performance', path: '/admin/staff/performance', icon: BarChart3, section: 'people', group: 'Workforce', permission: 'hr.performance.manage' },
+  { name: 'Payroll', path: '/admin/staff/payroll', icon: DollarSign, section: 'people', group: 'Workforce', permission: 'finance.manage' },
 ]
 
 const sectionLabels: Record<NavItem['section'], string> = {

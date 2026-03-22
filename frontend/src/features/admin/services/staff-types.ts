@@ -46,11 +46,22 @@ export interface StaffProfile {
   status: StaffStatus
   createdAt: string
   updatedAt: string
+  dateJoined: string
+  birthDate?: string | null
+  phoneNumber?: string | null
+  personalEmail?: string | null
+  homeAddress?: string | null
+  emergencyContact?: string | null
+  salary?: number | null
+  avatarValue?: string | null
+  avatarType?: 'emoji' | 'upload' | null
   user: {
     id: string
     name: string
     email: string
     role: 'USER' | 'ADMIN' | 'SUPER_ADMIN'
+    avatarValue?: string | null
+    avatarType?: 'emoji' | 'upload'
   }
   department: Department
   assignments: Array<{

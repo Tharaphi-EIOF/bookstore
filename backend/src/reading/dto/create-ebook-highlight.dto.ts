@@ -12,7 +12,9 @@ export class CreateEbookHighlightDto {
   @IsString()
   startCfi!: string;
 
-  @ApiPropertyOptional({ example: 'epubcfi(/6/14[xchapter]!/4/2/2,/1:42,/1:84)' })
+  @ApiPropertyOptional({
+    example: 'epubcfi(/6/14[xchapter]!/4/2/2,/1:42,/1:84)',
+  })
   @IsOptional()
   @IsString()
   endCfi?: string;

@@ -35,6 +35,8 @@ export interface StoreStockRow {
     author: string
     isbn: string
     price: number | string
+    genres: string[]
+    categories: string[]
   }
 }
 

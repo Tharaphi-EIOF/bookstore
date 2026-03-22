@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { InquiryStatus } from '@prisma/client';
+import { InquiryStatus, InquiryType } from '@prisma/client';
 import { InquiriesService } from './inquiries.service';
 
 describe('InquiriesService', () => {
@@ -137,7 +137,7 @@ describe('InquiriesService', () => {
 
     const result = await service.createInquiry(
       { sub: 'customer-1', role: 'USER', permissions: ['inquiries.create'] },
-      { type: 'other', subject: 'Question', message: 'Help me' },
+      { type: InquiryType.OTHER, subject: 'Question', message: 'Help me' },
     );
 
     expect(result).toEqual({ id: 'inq-new' });

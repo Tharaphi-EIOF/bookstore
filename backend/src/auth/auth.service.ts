@@ -457,7 +457,10 @@ export class AuthService {
 
     const clerkUser = await this.clerkClient.users.getUser(clerkUserId);
     const normalizedEmail = this.resolvePrimaryClerkEmail(clerkUser);
-    const displayName = this.resolveClerkDisplayName(clerkUser, normalizedEmail);
+    const displayName = this.resolveClerkDisplayName(
+      clerkUser,
+      normalizedEmail,
+    );
 
     const existingByClerkId = await this.prisma.user.findUnique({
       where: { clerkUserId },
@@ -636,7 +639,9 @@ export class AuthService {
   }
 
   private async buildLocalJwtPayload(
-    user: Prisma.UserGetPayload<{ select: ReturnType<AuthService['buildSessionUserSelect']> }>,
+    user: Prisma.UserGetPayload<{
+      select: ReturnType<AuthService['buildSessionUserSelect']>;
+    }>,
   ) {
     const permissions = Array.from(
       await resolveUserPermissionKeys(this.prisma, user.id),
@@ -691,7 +696,9 @@ export class AuthService {
   }
 
   private async buildSessionUserResponse(
-    user: Prisma.UserGetPayload<{ select: ReturnType<AuthService['buildSessionUserSelect']> }>,
+    user: Prisma.UserGetPayload<{
+      select: ReturnType<AuthService['buildSessionUserSelect']>;
+    }>,
   ) {
     const permissions = Array.from(
       await resolveUserPermissionKeys(this.prisma, user.id),

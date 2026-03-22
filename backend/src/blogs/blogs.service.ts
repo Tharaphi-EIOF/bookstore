@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { assertUserPermission } from '../auth/permission-resolution';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -26,6 +26,12 @@ import {
   normalizeTags,
   uniqueIds,
 } from './blogs.helpers';
+import {
+  deleteBlogUploadFile,
+  extractBlogUploadUrls,
+  getBlogUploadOwnerId,
+  hasInlineImageData,
+} from './blog-assets';
 import { mapBlog } from './blogs.mapper';
 import { toProfileResponse } from './blogs.profile';
 import { blogInclude, commentInclude } from './blogs.selectors';
@@ -118,6 +124,27 @@ export class BlogsService {
     }
   }
 
+  // Block inline image payloads so posts only persist lightweight asset URLs.
+  private assertNoInlineImages(content: string | undefined) {
+    if (content !== undefined && hasInlineImageData(content)) {
+      throw new BadRequestException(
+        'Inline image data is not supported. Please upload the image first.',
+      );
+    }
+  }
+
+  // Removed blog-upload assets should be deleted after the post update succeeds.
+  private async cleanupRemovedBlogImages(
+    previousContent: string | null | undefined,
+    nextContent: string | null | undefined,
+  ) {
+    const previousUrls = new Set(extractBlogUploadUrls(previousContent));
+    const nextUrls = new Set(extractBlogUploadUrls(nextContent));
+    const removedUrls = [...previousUrls].filter((url) => !nextUrls.has(url));
+
+    await Promise.all(removedUrls.map((url) => deleteBlogUploadFile(url)));
+  }
+
   async getMyAnalytics(userId: string) {
     await this.ensureUser(userId);
     const db = this.prisma as any;
@@ -174,7 +201,9 @@ export class BlogsService {
     const topPosts = [...posts]
       .sort(
         (a, b) =>
-          (b.viewsCount + b.likesCount * 3 + b.commentsCount * 4) -
+          b.viewsCount +
+          b.likesCount * 3 +
+          b.commentsCount * 4 -
           (a.viewsCount + a.likesCount * 3 + a.commentsCount * 4),
       )
       .slice(0, 5);
@@ -202,14 +231,21 @@ export class BlogsService {
 
     const nextIntroLines =
       dto.introLines !== undefined
-        ? dto.introLines.map((line) => line.trim()).filter(Boolean).slice(0, 12)
+        ? dto.introLines
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .slice(0, 12)
         : this.normalizeIntroLines(current.introLines);
 
     const updated = await this.prisma.blogPageSetting.update({
       where: { id: BLOG_PAGE_SETTINGS_ROW_ID },
       data: {
-        ...(dto.eyebrow !== undefined ? { eyebrow: dto.eyebrow.trim() || current.eyebrow } : {}),
-        ...(dto.title !== undefined ? { title: dto.title.trim() || current.title } : {}),
+        ...(dto.eyebrow !== undefined
+          ? { eyebrow: dto.eyebrow.trim() || current.eyebrow }
+          : {}),
+        ...(dto.title !== undefined
+          ? { title: dto.title.trim() || current.title }
+          : {}),
         ...(dto.introLines !== undefined ? { introLines: nextIntroLines } : {}),
       },
     });
@@ -226,7 +262,12 @@ export class BlogsService {
   }
 
   private resolveRequestedStatus(
-    requested: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED' | undefined,
+    requested:
+      | 'DRAFT'
+      | 'PENDING_REVIEW'
+      | 'REJECTED'
+      | 'PUBLISHED'
+      | undefined,
     isAdmin: boolean,
   ): 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED' {
     if (!requested) return BLOG_STATUS.DRAFT;
@@ -298,10 +339,7 @@ export class BlogsService {
       }
     }
 
-    if (
-      existing.status !== BLOG_STATUS.PUBLISHED &&
-      !canAccessUnpublished
-    ) {
+    if (existing.status !== BLOG_STATUS.PUBLISHED && !canAccessUnpublished) {
       throw new NotFoundException('Blog post not found');
     }
 
@@ -327,7 +365,10 @@ export class BlogsService {
             throw error;
           }
         }
-      } else if (typeof visitorId === 'string' && visitorId.trim().length >= 12) {
+      } else if (
+        typeof visitorId === 'string' &&
+        visitorId.trim().length >= 12
+      ) {
         const normalizedVisitorId = visitorId.trim().slice(0, 128);
         try {
           await db.blogPostAnonymousView.create({
@@ -351,29 +392,28 @@ export class BlogsService {
       }
     }
 
-    const blog =
-      shouldIncrementView
-        ? await db.authorBlog.update({
-            where: { id: blogId },
-            data: { viewsCount: { increment: 1 } },
-            include: {
-              ...blogInclude(currentUserId),
-              comments: {
-                include: commentInclude(),
-                orderBy: { createdAt: 'desc' },
-              },
+    const blog = shouldIncrementView
+      ? await db.authorBlog.update({
+          where: { id: blogId },
+          data: { viewsCount: { increment: 1 } },
+          include: {
+            ...blogInclude(currentUserId),
+            comments: {
+              include: commentInclude(),
+              orderBy: { createdAt: 'desc' },
             },
-          })
-        : await db.authorBlog.findUnique({
-            where: { id: blogId },
-            include: {
-              ...blogInclude(currentUserId),
-              comments: {
-                include: commentInclude(),
-                orderBy: { createdAt: 'desc' },
-              },
+          },
+        })
+      : await db.authorBlog.findUnique({
+          where: { id: blogId },
+          include: {
+            ...blogInclude(currentUserId),
+            comments: {
+              include: commentInclude(),
+              orderBy: { createdAt: 'desc' },
             },
-          });
+          },
+        });
 
     if (!blog) {
       throw new NotFoundException('Blog post not found');
@@ -385,12 +425,16 @@ export class BlogsService {
   async createBlog(userId: string, dto: CreateBlogDto) {
     const db = this.prisma as any;
     const user = await this.ensureUser(userId);
+    this.assertNoInlineImages(dto.content);
     const tags = normalizeTags(dto.tags);
     const bookIds = uniqueIds(dto.bookIds);
     await this.assertBooksExist(bookIds);
 
     const readingTime = dto.readingTime ?? estimateReadingTime(dto.content);
-    const status = this.resolveRequestedStatus(dto.status, canManageAsAdmin(user.role));
+    const status = this.resolveRequestedStatus(
+      dto.status,
+      canManageAsAdmin(user.role),
+    );
     const scheduledAt = resolveScheduledAt(status, dto.scheduledAt);
 
     const blog = await db.authorBlog.create({
@@ -416,6 +460,7 @@ export class BlogsService {
   async updateBlog(userId: string, blogId: string, dto: UpdateBlogDto) {
     const db = this.prisma as any;
     const user = await this.ensureUser(userId);
+    this.assertNoInlineImages(dto.content);
 
     const existing = await db.authorBlog.findUnique({ where: { id: blogId } });
     if (!existing) {
@@ -479,6 +524,11 @@ export class BlogsService {
     ) {
       await this.notifyFollowersOnPublish(user, updated.id, updated.title);
     }
+
+    await this.cleanupRemovedBlogImages(
+      existing.content,
+      dto.content ?? existing.content,
+    );
 
     return mapBlog(updated, userId);
   }
@@ -549,7 +599,8 @@ export class BlogsService {
       throw new BadRequestException('Rejection reason is required.');
     }
 
-    const status = action === 'APPROVE' ? BLOG_STATUS.PUBLISHED : BLOG_STATUS.REJECTED;
+    const status =
+      action === 'APPROVE' ? BLOG_STATUS.PUBLISHED : BLOG_STATUS.REJECTED;
     const updated = await db.authorBlog.update({
       where: { id: blogId },
       data: {
@@ -587,7 +638,48 @@ export class BlogsService {
       throw new ForbiddenException('You can only delete your own blog posts');
     }
 
-    return this.prisma.authorBlog.delete({ where: { id: blogId } });
+    const deleted = await this.prisma.authorBlog.delete({
+      where: { id: blogId },
+    });
+    await Promise.all(
+      extractBlogUploadUrls(existing.content).map((url) =>
+        deleteBlogUploadFile(url),
+      ),
+    );
+    return deleted;
+  }
+
+  async deleteUploadedImage(userId: string, url: string) {
+    await this.ensureUser(userId);
+
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
+      throw new BadRequestException('Image URL is required.');
+    }
+
+    const ownerId = getBlogUploadOwnerId(trimmedUrl);
+    if (!ownerId || ownerId !== userId) {
+      throw new ForbiddenException(
+        'You can only delete your own uploaded images.',
+      );
+    }
+
+    const usageCount = await this.prisma.authorBlog.count({
+      where: {
+        content: {
+          contains: trimmedUrl,
+        },
+      },
+    });
+
+    if (usageCount > 0) {
+      throw new BadRequestException(
+        'This image is still attached to a saved blog post.',
+      );
+    }
+
+    await deleteBlogUploadFile(trimmedUrl);
+    return { deleted: true };
   }
 
   async likeBlog(userId: string, blogId: string) {
@@ -618,7 +710,7 @@ export class BlogsService {
     if (blog.authorId !== userId) {
       await this.notificationsService.createUserNotification({
         userId: blog.authorId,
-        type: 'blog_like' as any,
+        type: NotificationType.BLOG_LIKE,
         title: 'New like on your post',
         message: `${user.name} liked "${blog.title}".`,
         link: `/blogs/${blog.id}`,
@@ -694,7 +786,7 @@ export class BlogsService {
 
     await this.notificationsService.createUserNotification({
       userId: authorId,
-      type: 'blog_follow' as any,
+      type: NotificationType.BLOG_FOLLOW,
       title: 'New follower',
       message: `${user.name} started following you.`,
       link: `/user/${user.id}`,
@@ -857,7 +949,7 @@ export class BlogsService {
     if (blog.authorId !== userId) {
       await this.notificationsService.createUserNotification({
         userId: blog.authorId,
-        type: 'blog_comment' as any,
+        type: NotificationType.BLOG_COMMENT,
         title: 'New comment on your post',
         message: `${commenter.name} commented on "${blog.title}".`,
         link: `/blogs/${blog.id}`,
@@ -960,7 +1052,7 @@ export class BlogsService {
       followers.map((follower) =>
         this.notificationsService.createUserNotification({
           userId: follower.followerId,
-          type: 'announcement',
+          type: NotificationType.ANNOUNCEMENT,
           title: 'New post from an author you follow',
           message: `${author.name} published "${title}".`,
           link: `/blogs/${blogId}`,

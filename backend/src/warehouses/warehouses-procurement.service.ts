@@ -366,7 +366,8 @@ export class WarehousesProcurementService {
       >();
 
       for (const book of books) {
-        const labels = groupBy === 'genre' ? book.genres ?? [] : book.categories ?? [];
+        const labels =
+          groupBy === 'genre' ? (book.genres ?? []) : (book.categories ?? []);
 
         for (const label of labels) {
           const row = bucket.get(label) ?? {
@@ -656,7 +657,9 @@ export class WarehousesProcurementService {
     const minDailySales = Number(params?.minDailySales ?? 0);
     const limit = this.clampLimit(params?.limit, 20, 100);
     const salesWindowDays = 30;
-    const salesFromDate = new Date(Date.now() - salesWindowDays * 24 * 60 * 60 * 1000);
+    const salesFromDate = new Date(
+      Date.now() - salesWindowDays * 24 * 60 * 60 * 1000,
+    );
 
     const [salesRows, pendingRows] = await Promise.all([
       this.prisma.orderItem.groupBy({
@@ -724,7 +727,9 @@ export class WarehousesProcurementService {
         const sold30Days = soldMap.get(book.id) ?? 0;
         const dailySales = sold30Days / salesWindowDays;
         const pendingQty = pendingMap.get(book.id) ?? 0;
-        const targetStock = Math.ceil(dailySales * (leadTimeDays + coverageDays));
+        const targetStock = Math.ceil(
+          dailySales * (leadTimeDays + coverageDays),
+        );
         const availableSoon = book.stock + pendingQty;
         const suggestedQuantity = Math.max(0, targetStock - availableSoon);
 
@@ -743,8 +748,7 @@ export class WarehousesProcurementService {
       })
       .filter(
         (item) =>
-          item.suggestedQuantity > 0 &&
-          item.dailySales >= minDailySales,
+          item.suggestedQuantity > 0 && item.dailySales >= minDailySales,
       )
       .sort(
         (a, b) =>
@@ -797,7 +801,11 @@ export class WarehousesProcurementService {
       limit: params.limit,
     });
 
-    const created: Array<{ requestId: string; bookId: string; quantity: number }> = [];
+    const created: Array<{
+      requestId: string;
+      bookId: string;
+      quantity: number;
+    }> = [];
     const skipped: Array<{ bookId: string; reason: string }> = [];
 
     for (const item of suggestions.items) {
@@ -986,7 +994,7 @@ export class WarehousesProcurementService {
 
     const inquiries = await this.prisma.inquiry.findMany({
       where: {
-        type: InquiryType.stock,
+        type: InquiryType.STOCK,
         status: {
           in: [
             InquiryStatus.OPEN,
@@ -1843,8 +1851,7 @@ export class WarehousesProcurementService {
           sourceType: InventoryLotSourceType.PURCHASE_ORDER,
           purchaseOrderItemId: item.id,
           vendorId: order.vendorId,
-          unitCost:
-            item.unitCost !== null ? Number(item.unitCost) : null,
+          unitCost: item.unitCost !== null ? Number(item.unitCost) : null,
           note: `Received against purchase order ${order.id}.`,
         });
 

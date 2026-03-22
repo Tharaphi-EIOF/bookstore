@@ -7,7 +7,7 @@ import {
 } from '@/features/blog/services/blogs'
 import { getErrorMessage } from '@/lib/api'
 
-type ModerationStatus = 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED' | 'DRAFT'
+type ModerationStatus = 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED'
 
 const formatDate = (value?: string | null) => {
   if (!value) return '-'
@@ -22,6 +22,8 @@ const moderationFilterControlClassName =
 const AdminBlogModerationPage = () => {
   const [status, setStatus] = useState<ModerationStatus>('PENDING_REVIEW')
   const [q, setQ] = useState('')
+  const [sortKey, setSortKey] = useState<'title' | 'author' | 'status' | 'submitted' | 'reason'>('submitted')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [reasonByBlog, setReasonByBlog] = useState<Record<string, string>>({})
   const [message, setMessage] = useState('')
 
@@ -51,6 +53,34 @@ const AdminBlogModerationPage = () => {
   const setReason = (blogId: string, value: string) => {
     setReasonByBlog((prev) => ({ ...prev, [blogId]: value }))
   }
+
+  const toggleSort = (key: typeof sortKey) => {
+    if (sortKey === key) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortKey(key)
+    setSortDir(key === 'submitted' ? 'desc' : 'asc')
+  }
+
+  const sortedRows = useMemo(() => {
+    const direction = sortDir === 'asc' ? 1 : -1
+    return [...rows].sort((a, b) => {
+      switch (sortKey) {
+        case 'title':
+          return a.title.localeCompare(b.title) * direction
+        case 'author':
+          return a.author.name.localeCompare(b.author.name) * direction
+        case 'status':
+          return a.status.localeCompare(b.status) * direction
+        case 'reason':
+          return ((a.moderationReason ?? '').localeCompare(b.moderationReason ?? '')) * direction
+        case 'submitted':
+        default:
+          return ((new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) || 0) * direction
+      }
+    })
+  }, [rows, sortDir, sortKey])
 
   const handleApprove = async (blogId: string) => {
     setMessage('')
@@ -94,7 +124,6 @@ const AdminBlogModerationPage = () => {
             <option value="PENDING_REVIEW">Pending Review</option>
             <option value="REJECTED">Rejected</option>
             <option value="PUBLISHED">Published</option>
-            <option value="DRAFT">Draft</option>
           </select>
         </div>
         <div className="min-w-0 md:col-span-2">
@@ -125,16 +154,41 @@ const AdminBlogModerationPage = () => {
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs uppercase tracking-wider text-slate-500 dark:border-slate-800">
-                <th className="px-3 py-2">Post</th>
-                <th className="px-3 py-2">Author</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Submitted</th>
-                <th className="px-3 py-2">Review Reason</th>
+                <th className="px-3 py-2">
+                  <button type="button" onClick={() => toggleSort('title')} className="inline-flex items-center gap-2">
+                    Post
+                    {sortKey === 'title' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                  </button>
+                </th>
+                <th className="px-3 py-2">
+                  <button type="button" onClick={() => toggleSort('author')} className="inline-flex items-center gap-2">
+                    Author
+                    {sortKey === 'author' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                  </button>
+                </th>
+                <th className="px-3 py-2">
+                  <button type="button" onClick={() => toggleSort('status')} className="inline-flex items-center gap-2">
+                    Status
+                    {sortKey === 'status' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                  </button>
+                </th>
+                <th className="px-3 py-2">
+                  <button type="button" onClick={() => toggleSort('submitted')} className="inline-flex items-center gap-2">
+                    Submitted
+                    {sortKey === 'submitted' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                  </button>
+                </th>
+                <th className="px-3 py-2">
+                  <button type="button" onClick={() => toggleSort('reason')} className="inline-flex items-center gap-2">
+                    Review Reason
+                    {sortKey === 'reason' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                  </button>
+                </th>
                 <th className="px-3 py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {sortedRows.map((row) => (
                 <tr key={row.id} className="border-b align-top dark:border-slate-800">
                   <td className="px-3 py-3">
                     <p className="font-medium">{row.title}</p>
@@ -185,7 +239,7 @@ const AdminBlogModerationPage = () => {
         </div>
 
         {queueQuery.isLoading ? <p className="px-3 py-6 text-sm text-slate-500">Loading moderation queue...</p> : null}
-        {!queueQuery.isLoading && rows.length === 0 ? (
+        {!queueQuery.isLoading && sortedRows.length === 0 ? (
           <p className="px-3 py-6 text-sm text-slate-500">No posts found for this filter.</p>
         ) : null}
       </section>

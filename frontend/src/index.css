@@ -785,3 +785,212 @@ code {
   background: linear-gradient(180deg, #ffffff, #cbd5e1);
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.5);
 }
+
+/* Route-level cartoon book loader. */
+.book-loader {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 11rem;
+  height: 9.5rem;
+}
+
+.book-loader__book {
+  position: relative;
+  width: 6.4rem;
+  height: 4.9rem;
+  transform-origin: center bottom;
+  animation: book-loader-bob 1.8s ease-in-out infinite;
+}
+
+.book-loader__cover,
+.book-loader__pages,
+.book-loader__page-flip {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.9rem 0.55rem 0.55rem 0.9rem;
+}
+
+.book-loader__cover {
+  background: linear-gradient(145deg, #3b82f6 0%, #1d4ed8 100%);
+  border: 1px solid rgba(29, 78, 216, 0.28);
+  box-shadow:
+    0 18px 35px -24px rgba(37, 99, 235, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.book-loader__cover::before {
+  content: '';
+  position: absolute;
+  left: 0.7rem;
+  top: 0.55rem;
+  bottom: 0.55rem;
+  width: 0.42rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.book-loader__pages {
+  inset: 0.28rem 0.35rem 0.28rem 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #e8f0ff 100%);
+  box-shadow: inset -10px 0 0 rgba(191, 219, 254, 0.55);
+}
+
+.book-loader__page-flip {
+  inset: 0.28rem 0.35rem 0.28rem 1rem;
+  transform-origin: left center;
+  background: linear-gradient(180deg, #ffffff 0%, #dbeafe 100%);
+  border-left: 1px solid rgba(148, 163, 184, 0.22);
+  animation: book-loader-flip 1.35s cubic-bezier(0.37, 0, 0.2, 1) infinite;
+}
+
+.book-loader__face {
+  position: absolute;
+  right: 1.05rem;
+  top: 1.55rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.book-loader__eye {
+  width: 0.45rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: #0f172a;
+  animation: book-loader-blink 2.2s ease-in-out infinite;
+}
+
+.book-loader__shadow {
+  position: absolute;
+  bottom: 0.65rem;
+  width: 4.9rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.14);
+  filter: blur(2px);
+  animation: book-loader-shadow 1.8s ease-in-out infinite;
+}
+
+.dark .book-loader__shadow {
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.book-loader__spark {
+  position: absolute;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 0.1rem;
+  background: linear-gradient(180deg, #f59e0b 0%, #fb7185 100%);
+  opacity: 0.7;
+}
+
+.book-loader__spark--one {
+  top: 0.95rem;
+  right: 2.1rem;
+  animation: book-loader-spark-one 1.8s ease-in-out infinite;
+}
+
+.book-loader__spark--two {
+  top: 1.55rem;
+  right: 1.25rem;
+  animation: book-loader-spark-two 1.8s ease-in-out infinite;
+}
+
+.dark .book-loader__pages,
+.dark .book-loader__page-flip {
+  background: linear-gradient(180deg, #f8fafc 0%, #dbeafe 100%);
+}
+
+/* Loader motion. */
+@keyframes book-loader-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(2deg);
+  }
+}
+
+@keyframes book-loader-flip {
+  0%,
+  15% {
+    transform: perspective(180px) rotateY(0deg);
+    opacity: 1;
+  }
+  45% {
+    transform: perspective(180px) rotateY(-120deg);
+    opacity: 0.95;
+  }
+  55% {
+    transform: perspective(180px) rotateY(-180deg);
+    opacity: 0.2;
+  }
+  56% {
+    transform: perspective(180px) rotateY(0deg);
+    opacity: 0;
+  }
+  100% {
+    transform: perspective(180px) rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes book-loader-shadow {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.28;
+  }
+  50% {
+    transform: scaleX(0.86);
+    opacity: 0.18;
+  }
+}
+
+@keyframes book-loader-blink {
+  0%,
+  44%,
+  48%,
+  100% {
+    transform: scaleY(1);
+  }
+  46% {
+    transform: scaleY(0.16);
+  }
+}
+
+@keyframes book-loader-spark-one {
+  0%,
+  100% {
+    transform: translateY(0) rotate(12deg);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translateY(-12px) rotate(24deg);
+    opacity: 0.85;
+  }
+}
+
+@keyframes book-loader-spark-two {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-10deg);
+    opacity: 0.15;
+  }
+  50% {
+    transform: translateY(-9px) rotate(-24deg);
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-loader__book,
+  .book-loader__page-flip,
+  .book-loader__eye,
+  .book-loader__shadow,
+  .book-loader__spark {
+    animation: none !important;
+  }
+}

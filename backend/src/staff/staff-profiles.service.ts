@@ -253,6 +253,16 @@ export class StaffProfilesService {
       }
     }
 
+    if (dto.avatarValue || dto.avatarType) {
+      await this.prisma.user.update({
+        where: { id: existing.userId },
+        data: {
+          avatarValue: dto.avatarValue,
+          avatarType: dto.avatarType,
+        },
+      });
+    }
+
     const profile = await this.prisma.staffProfile.update({
       where: { id },
       data: buildStaffProfileUpdateData(dto),
@@ -271,7 +281,19 @@ export class StaffProfilesService {
         'staff profile',
         existing,
         profile,
-        ['title', 'departmentId', 'managerId', 'status', 'employeeCode'],
+        [
+          'title',
+          'departmentId',
+          'managerId',
+          'status',
+          'employeeCode',
+          'dateJoined',
+          'birthDate',
+          'phoneNumber',
+          'personalEmail',
+          'homeAddress',
+          'emergencyContact',
+        ],
         `Updated staff profile ${profile.title}.`,
       ),
     );
@@ -432,7 +454,11 @@ export class StaffProfilesService {
       'staffAssignment.delete',
       'staffAssignment',
       assignmentId,
-      this.internal.buildDeleteAuditChanges('staff assignment', removed, 'Removed a staff role assignment.'),
+      this.internal.buildDeleteAuditChanges(
+        'staff assignment',
+        removed,
+        'Removed a staff role assignment.',
+      ),
     );
 
     return removed;

@@ -22,7 +22,10 @@ export class LoyaltyService {
   constructor(private readonly prisma: PrismaService) {}
 
   private normalizePromoCode(codePrefix: string, suffix: string) {
-    return `${codePrefix.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '')}-${suffix}`;
+    return `${codePrefix
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '')}-${suffix}`;
   }
 
   private async buildUniquePromoCode(prefix: string) {
@@ -57,12 +60,16 @@ export class LoyaltyService {
       dto.discountValue !== undefined &&
       dto.discountValue > 100
     ) {
-      throw new BadRequestException('Percent coupon rewards cannot exceed 100%.');
+      throw new BadRequestException(
+        'Percent coupon rewards cannot exceed 100%.',
+      );
     }
 
     if (dto.rewardType === LoyaltyRewardType.FREE_EBOOK) {
       if (!dto.rewardBookId) {
-        throw new BadRequestException('Free eBook rewards require a rewardBookId.');
+        throw new BadRequestException(
+          'Free eBook rewards require a rewardBookId.',
+        );
       }
       const book = await this.prisma.book.findUnique({
         where: { id: dto.rewardBookId },
@@ -195,7 +202,9 @@ export class LoyaltyService {
       reward.redemptionLimit !== undefined &&
       reward.redeemedCount >= reward.redemptionLimit
     ) {
-      throw new BadRequestException('This reward has reached its redemption limit.');
+      throw new BadRequestException(
+        'This reward has reached its redemption limit.',
+      );
     }
 
     const user = await this.prisma.user.findUnique({
@@ -242,7 +251,10 @@ export class LoyaltyService {
 
       let promoId: string | null = null;
 
-      if (reward.rewardType === LoyaltyRewardType.FREE_EBOOK && reward.rewardBookId) {
+      if (
+        reward.rewardType === LoyaltyRewardType.FREE_EBOOK &&
+        reward.rewardBookId
+      ) {
         await tx.userBookAccess.upsert({
           where: {
             userId_bookId: {
@@ -331,7 +343,11 @@ export class LoyaltyService {
   }
 
   async listRewards(actorUserId: string) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.payout.manage');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.payout.manage',
+    );
     return this.prisma.loyaltyReward.findMany({
       include: {
         rewardBook: {
@@ -347,7 +363,11 @@ export class LoyaltyService {
   }
 
   async createReward(actorUserId: string, dto: CreateLoyaltyRewardDto) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.payout.manage');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.payout.manage',
+    );
     await this.ensureRewardPayload(dto);
     return this.prisma.loyaltyReward.create({
       data: {
@@ -378,7 +398,11 @@ export class LoyaltyService {
     rewardId: string,
     dto: UpdateLoyaltyRewardDto,
   ) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.payout.manage');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.payout.manage',
+    );
     const existing = await this.prisma.loyaltyReward.findUnique({
       where: { id: rewardId },
     });
@@ -391,7 +415,7 @@ export class LoyaltyService {
       description:
         dto.description !== undefined
           ? dto.description
-          : existing.description ?? undefined,
+          : (existing.description ?? undefined),
       stickerCost: dto.stickerCost ?? existing.stickerCost,
       rewardType: dto.rewardType ?? existing.rewardType,
       discountValue:
@@ -409,11 +433,11 @@ export class LoyaltyService {
       rewardBookId:
         dto.rewardBookId !== undefined
           ? dto.rewardBookId || undefined
-          : existing.rewardBookId ?? undefined,
+          : (existing.rewardBookId ?? undefined),
       redemptionLimit:
         dto.redemptionLimit !== undefined
           ? dto.redemptionLimit
-          : existing.redemptionLimit ?? undefined,
+          : (existing.redemptionLimit ?? undefined),
       isActive: dto.isActive ?? existing.isActive,
     });
 
@@ -424,13 +448,19 @@ export class LoyaltyService {
         ...(dto.description !== undefined
           ? { description: dto.description.trim() || null }
           : {}),
-        ...(dto.stickerCost !== undefined ? { stickerCost: dto.stickerCost } : {}),
+        ...(dto.stickerCost !== undefined
+          ? { stickerCost: dto.stickerCost }
+          : {}),
         ...(dto.rewardType !== undefined ? { rewardType: dto.rewardType } : {}),
-        ...(dto.discountValue !== undefined ? { discountValue: dto.discountValue } : {}),
+        ...(dto.discountValue !== undefined
+          ? { discountValue: dto.discountValue }
+          : {}),
         ...(dto.maxDiscountAmount !== undefined
           ? { maxDiscountAmount: dto.maxDiscountAmount }
           : {}),
-        ...(dto.rewardBookId !== undefined ? { rewardBookId: dto.rewardBookId || null } : {}),
+        ...(dto.rewardBookId !== undefined
+          ? { rewardBookId: dto.rewardBookId || null }
+          : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
         ...(dto.redemptionLimit !== undefined
           ? { redemptionLimit: dto.redemptionLimit }
@@ -449,8 +479,14 @@ export class LoyaltyService {
   }
 
   async grantStickers(actorUserId: string, dto: GrantStickersDto) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.payout.manage');
-    const uniqueUserIds = Array.from(new Set(dto.userIds.map((id) => id.trim()).filter(Boolean)));
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.payout.manage',
+    );
+    const uniqueUserIds = Array.from(
+      new Set(dto.userIds.map((id) => id.trim()).filter(Boolean)),
+    );
     if (uniqueUserIds.length === 0) {
       throw new BadRequestException('Select at least one user.');
     }
@@ -479,8 +515,14 @@ export class LoyaltyService {
   }
 
   async grantPromotions(actorUserId: string, dto: GrantPromotionDto) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.payout.manage');
-    const uniqueUserIds = Array.from(new Set(dto.userIds.map((id) => id.trim()).filter(Boolean)));
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.payout.manage',
+    );
+    const uniqueUserIds = Array.from(
+      new Set(dto.userIds.map((id) => id.trim()).filter(Boolean)),
+    );
     if (uniqueUserIds.length === 0) {
       throw new BadRequestException('Select at least one user.');
     }

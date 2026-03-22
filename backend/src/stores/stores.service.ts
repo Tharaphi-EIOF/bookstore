@@ -103,12 +103,22 @@ export class StoresService {
           },
         },
       },
-      orderBy: [{ deletedAt: 'asc' }, { isActive: 'desc' }, { state: 'asc' }, { city: 'asc' }, { name: 'asc' }],
+      orderBy: [
+        { deletedAt: 'asc' },
+        { isActive: 'desc' },
+        { state: 'asc' },
+        { city: 'asc' },
+        { name: 'asc' },
+      ],
     });
   }
 
   async createStore(dto: CreateStoreDto, actorUserId: string) {
-    await assertUserPermission(this.prisma, actorUserId, 'warehouse.stock.update');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'warehouse.stock.update',
+    );
     return this.prisma.store.create({
       data: {
         name: dto.name,
@@ -124,10 +134,16 @@ export class StoresService {
   }
 
   async updateStore(storeId: string, dto: UpdateStoreDto, actorUserId: string) {
-    await assertUserPermission(this.prisma, actorUserId, 'warehouse.stock.update');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'warehouse.stock.update',
+    );
     const store = await this.ensureStore(storeId);
     if (store.deletedAt) {
-      throw new BadRequestException('Cannot update a store in bin. Restore it first.');
+      throw new BadRequestException(
+        'Cannot update a store in bin. Restore it first.',
+      );
     }
 
     return this.prisma.store.update({
@@ -146,7 +162,11 @@ export class StoresService {
   }
 
   async deleteStore(storeId: string, actorUserId: string) {
-    await assertUserPermission(this.prisma, actorUserId, 'warehouse.stock.update');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'warehouse.stock.update',
+    );
     const store = await this.ensureStore(storeId);
     if (store.deletedAt) {
       throw new BadRequestException('Store is already in bin.');
@@ -189,7 +209,11 @@ export class StoresService {
   }
 
   async restoreStore(storeId: string, actorUserId: string) {
-    await assertUserPermission(this.prisma, actorUserId, 'warehouse.stock.update');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'warehouse.stock.update',
+    );
     const store = await this.ensureStore(storeId);
     if (!store.deletedAt) {
       throw new BadRequestException('Store is not in bin.');
@@ -203,7 +227,11 @@ export class StoresService {
   }
 
   async permanentDeleteStore(storeId: string, actorUserId: string) {
-    await assertUserPermission(this.prisma, actorUserId, 'warehouse.stock.update');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'warehouse.stock.update',
+    );
     const store = await this.ensureStore(storeId);
     if (!store.deletedAt) {
       throw new BadRequestException(
@@ -229,6 +257,8 @@ export class StoresService {
             author: true,
             isbn: true,
             price: true,
+            genres: true,
+            categories: true,
           },
         },
       },
@@ -242,7 +272,11 @@ export class StoresService {
     dto: SetStoreStockDto,
     actorUserId: string,
   ) {
-    await assertUserPermission(this.prisma, actorUserId, 'warehouse.stock.update');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'warehouse.stock.update',
+    );
     await this.ensureStore(storeId);
     await this.ensureBook(bookId);
 
@@ -312,95 +346,99 @@ export class StoresService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const source = await tx.warehouseStock.findUnique({
-        where: {
-          warehouseId_bookId: {
-            warehouseId: dto.fromWarehouseId,
-            bookId: dto.bookId,
+    return this.prisma
+      .$transaction(async (tx) => {
+        const source = await tx.warehouseStock.findUnique({
+          where: {
+            warehouseId_bookId: {
+              warehouseId: dto.fromWarehouseId,
+              bookId: dto.bookId,
+            },
           },
-        },
-      });
+        });
 
-      if (!source || source.stock < dto.quantity) {
-        throw new BadRequestException('Insufficient source warehouse stock.');
-      }
+        if (!source || source.stock < dto.quantity) {
+          throw new BadRequestException('Insufficient source warehouse stock.');
+        }
 
-      await tx.warehouseStock.update({
-        where: {
-          warehouseId_bookId: {
-            warehouseId: dto.fromWarehouseId,
-            bookId: dto.bookId,
+        await tx.warehouseStock.update({
+          where: {
+            warehouseId_bookId: {
+              warehouseId: dto.fromWarehouseId,
+              bookId: dto.bookId,
+            },
           },
-        },
-        data: {
-          stock: {
-            decrement: dto.quantity,
+          data: {
+            stock: {
+              decrement: dto.quantity,
+            },
           },
-        },
-      });
+        });
 
-      await tx.storeStock.upsert({
-        where: {
-          storeId_bookId: {
+        await tx.storeStock.upsert({
+          where: {
+            storeId_bookId: {
+              storeId: dto.toStoreId,
+              bookId: dto.bookId,
+            },
+          },
+          update: {
+            stock: {
+              increment: dto.quantity,
+            },
+          },
+          create: {
             storeId: dto.toStoreId,
             bookId: dto.bookId,
+            stock: dto.quantity,
+            lowStockThreshold: 5,
           },
-        },
-        update: {
-          stock: {
-            increment: dto.quantity,
-          },
-        },
-        create: {
-          storeId: dto.toStoreId,
-          bookId: dto.bookId,
-          stock: dto.quantity,
-          lowStockThreshold: 5,
-        },
-      });
+        });
 
-      await transferInventoryLots(tx, {
-        bookId: dto.bookId,
-        quantity: dto.quantity,
-        from: { warehouseId: dto.fromWarehouseId },
-        to: { storeId: dto.toStoreId },
-        note: dto.note,
-        transferSourceType: InventoryLotSourceType.STORE_TRANSFER,
-      });
-
-      const transfer = await tx.storeTransfer.create({
-        data: {
+        await transferInventoryLots(tx, {
           bookId: dto.bookId,
-          fromWarehouseId: dto.fromWarehouseId,
-          toStoreId: dto.toStoreId,
           quantity: dto.quantity,
+          from: { warehouseId: dto.fromWarehouseId },
+          to: { storeId: dto.toStoreId },
           note: dto.note,
-          createdByUserId: actorUserId,
-        },
-        include: {
-          book: {
-            select: { id: true, title: true, author: true },
-          },
-          fromWarehouse: {
-            select: { id: true, code: true, name: true },
-          },
-          toStore: {
-            select: { id: true, code: true, name: true },
-          },
-        },
-      });
+          transferSourceType: InventoryLotSourceType.STORE_TRANSFER,
+        });
 
-      return transfer;
-    }).then(async (transfer) => {
-      await this.syncBookTotalStockFromWarehouses(dto.bookId);
-      return transfer;
-    });
+        const transfer = await tx.storeTransfer.create({
+          data: {
+            bookId: dto.bookId,
+            fromWarehouseId: dto.fromWarehouseId,
+            toStoreId: dto.toStoreId,
+            quantity: dto.quantity,
+            note: dto.note,
+            createdByUserId: actorUserId,
+          },
+          include: {
+            book: {
+              select: { id: true, title: true, author: true },
+            },
+            fromWarehouse: {
+              select: { id: true, code: true, name: true },
+            },
+            toStore: {
+              select: { id: true, code: true, name: true },
+            },
+          },
+        });
+
+        return transfer;
+      })
+      .then(async (transfer) => {
+        await this.syncBookTotalStockFromWarehouses(dto.bookId);
+        return transfer;
+      });
   }
 
   async listTransfers(actorUserId: string, limit = 50) {
     await assertUserPermission(this.prisma, actorUserId, 'warehouse.view');
-    const safeLimit = Number.isNaN(limit) ? 50 : Math.min(Math.max(limit, 1), 200);
+    const safeLimit = Number.isNaN(limit)
+      ? 50
+      : Math.min(Math.max(limit, 1), 200);
     return this.prisma.storeTransfer.findMany({
       take: safeLimit,
       include: {
@@ -419,7 +457,11 @@ export class StoresService {
   }
 
   async getSalesOverview(actorUserId: string, from?: Date, to?: Date) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.reports.view');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.reports.view',
+    );
 
     const where = {
       deliveryType: 'STORE_PICKUP' as const,
@@ -474,20 +516,26 @@ export class StoresService {
       }),
     ]);
 
-    const byStore = new Map<string, {
-      store: {
-        id: string;
-        code: string;
-        name: string;
-        city: string;
-        state: string;
-      };
-      totalOrders: number;
-      completedOrders: number;
-      grossSales: number;
-      unitsSold: number;
-      topBooks: Map<string, { bookId: string; title: string; author: string; quantity: number }>;
-    }>();
+    const byStore = new Map<
+      string,
+      {
+        store: {
+          id: string;
+          code: string;
+          name: string;
+          city: string;
+          state: string;
+        };
+        totalOrders: number;
+        completedOrders: number;
+        grossSales: number;
+        unitsSold: number;
+        topBooks: Map<
+          string,
+          { bookId: string; title: string; author: string; quantity: number }
+        >;
+      }
+    >();
 
     for (const order of orders) {
       if (!order.pickupStore) {
@@ -534,11 +582,12 @@ export class StoresService {
         completedOrders: stats?.completedOrders ?? 0,
         unitsSold: stats?.unitsSold ?? 0,
         grossSales,
-        avgOrderValue: totalOrders > 0 ? Number((grossSales / totalOrders).toFixed(2)) : 0,
+        avgOrderValue:
+          totalOrders > 0 ? Number((grossSales / totalOrders).toFixed(2)) : 0,
         topBooks: stats
           ? Array.from(stats.topBooks.values())
-            .sort((a, b) => b.quantity - a.quantity)
-            .slice(0, 5)
+              .sort((a, b) => b.quantity - a.quantity)
+              .slice(0, 5)
           : [],
       };
     });
@@ -546,7 +595,10 @@ export class StoresService {
     const totalSales = Number(
       perStore.reduce((sum, item) => sum + item.grossSales, 0).toFixed(2),
     );
-    const totalOrders = perStore.reduce((sum, item) => sum + item.totalOrders, 0);
+    const totalOrders = perStore.reduce(
+      (sum, item) => sum + item.totalOrders,
+      0,
+    );
 
     return {
       range: {
@@ -558,7 +610,8 @@ export class StoresService {
         activeStores: stores.filter((store) => store.isActive).length,
         orders: totalOrders,
         grossSales: totalSales,
-        avgOrderValue: totalOrders > 0 ? Number((totalSales / totalOrders).toFixed(2)) : 0,
+        avgOrderValue:
+          totalOrders > 0 ? Number((totalSales / totalOrders).toFixed(2)) : 0,
       },
       perStore: perStore.sort((a, b) => b.grossSales - a.grossSales),
     };

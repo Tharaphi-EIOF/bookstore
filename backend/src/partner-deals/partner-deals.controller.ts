@@ -1,5 +1,20 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Request, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { PartnerDealStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { Permissions } from '../auth/permissions.decorator';
@@ -110,6 +125,10 @@ export class PartnerDealsController {
     @Param('id') id: string,
     @Param('settlementId') settlementId: string,
   ) {
-    return this.partnerDealsService.markSettlementPaid(req.user.sub, id, settlementId);
+    return this.partnerDealsService.markSettlementPaid(
+      req.user.sub,
+      id,
+      settlementId,
+    );
   }
 }

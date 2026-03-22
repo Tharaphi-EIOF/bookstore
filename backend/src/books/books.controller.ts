@@ -493,7 +493,9 @@ export class BooksController {
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)
   @Delete('bin/empty')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Empty the bin (permanently delete trashed books) (Admin only)' })
+  @ApiOperation({
+    summary: 'Empty the bin (permanently delete trashed books) (Admin only)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Bin emptied',

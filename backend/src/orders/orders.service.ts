@@ -7,6 +7,7 @@ import { PrismaService } from '../database/prisma.service';
 import { CartService } from '../cart/cart.service';
 import {
   DeliveryType,
+  NotificationType,
   Order,
   OrderItem,
   OrderStatus,
@@ -159,11 +160,7 @@ export class OrdersService {
     const digitalItems = Array.from(
       new Map(
         order.orderItems
-          .filter(
-            (item) =>
-              item.format === 'EBOOK'
-              && item.book?.isDigital,
-          )
+          .filter((item) => item.format === 'EBOOK' && item.book?.isDigital)
           .map((item) => [item.bookId, item]),
       ).values(),
     );
@@ -214,8 +211,8 @@ export class OrdersService {
     if (rule.startsAt && now < rule.startsAt) return false;
     if (rule.endsAt && now > rule.endsAt) return false;
     if (
-      rule.maxRedemptions !== null
-      && rule.redeemedCount >= rule.maxRedemptions
+      rule.maxRedemptions !== null &&
+      rule.redeemedCount >= rule.maxRedemptions
     ) {
       return false;
     }
@@ -290,7 +287,11 @@ export class OrdersService {
     }
 
     const discountAmount = this.computeDiscountAmount(rule, subtotal);
-    const totals = this.computeCheckoutTotals(subtotal, discountAmount, taxRate);
+    const totals = this.computeCheckoutTotals(
+      subtotal,
+      discountAmount,
+      taxRate,
+    );
     return {
       valid: true,
       promoId: rule.id,
@@ -461,8 +462,8 @@ export class OrdersService {
 
     const hasPhysicalItems = cart.items.some((item) => item.format !== 'EBOOK');
     const deliveryType = shipping?.deliveryType ?? DeliveryType.HOME_DELIVERY;
-    const isStorePickup = hasPhysicalItems
-      && deliveryType === DeliveryType.STORE_PICKUP;
+    const isStorePickup =
+      hasPhysicalItems && deliveryType === DeliveryType.STORE_PICKUP;
     const selectedStore = isStorePickup
       ? await this.prisma.store.findFirst({
           where: {
@@ -1078,7 +1079,9 @@ export class OrdersService {
       taskId,
       actorUserId,
     );
-    const linkedOrderId = this.getOrderIdFromTaskMetadata(completedTask.metadata);
+    const linkedOrderId = this.getOrderIdFromTaskMetadata(
+      completedTask.metadata,
+    );
     if (linkedOrderId) {
       await this.awardPurchaseStickers(linkedOrderId);
     }
@@ -1133,7 +1136,9 @@ export class OrdersService {
       where: { id: addressId },
       data: {
         ...(dto.label !== undefined ? { label: dto.label.trim() } : {}),
-        ...(dto.fullName !== undefined ? { fullName: dto.fullName.trim() } : {}),
+        ...(dto.fullName !== undefined
+          ? { fullName: dto.fullName.trim() }
+          : {}),
         ...(dto.email !== undefined
           ? { email: dto.email.trim().toLowerCase() }
           : {}),
@@ -1206,12 +1211,18 @@ export class OrdersService {
     }
 
     if (dto.bookId) {
-      const item = order.orderItems.find((entry) => entry.bookId === dto.bookId);
+      const item = order.orderItems.find(
+        (entry) => entry.bookId === dto.bookId,
+      );
       if (!item) {
-        throw new BadRequestException('Selected book is not part of this order.');
+        throw new BadRequestException(
+          'Selected book is not part of this order.',
+        );
       }
       if ((dto.requestedQty ?? 1) > item.quantity) {
-        throw new BadRequestException('Requested quantity exceeds purchased quantity.');
+        throw new BadRequestException(
+          'Requested quantity exceeds purchased quantity.',
+        );
       }
     }
 
@@ -1343,7 +1354,9 @@ export class OrdersService {
         status: dto.status,
         resolutionNote: dto.resolutionNote?.trim() || null,
         refundAmount:
-          dto.refundAmount !== undefined ? new Prisma.Decimal(dto.refundAmount) : null,
+          dto.refundAmount !== undefined
+            ? new Prisma.Decimal(dto.refundAmount)
+            : null,
         reviewedByUserId: actorUserId,
         reviewedAt: new Date(),
       },
@@ -1401,7 +1414,7 @@ export class OrdersService {
 
     await this.notificationsService.createUserNotification({
       userId: reviewed.user.id,
-      type: 'return_update',
+      type: NotificationType.RETURN_UPDATE,
       title: 'Your return request was updated',
       message:
         reviewed.status === ReturnRequestStatus.REJECTED

@@ -369,7 +369,9 @@ export class BookLeadsService {
         : Promise.resolve([]),
     ]);
 
-    const stageStatuses: Partial<Record<BookLeadWorkflowStage, BookLeadStatus[]>> = {
+    const stageStatuses: Partial<
+      Record<BookLeadWorkflowStage, BookLeadStatus[]>
+    > = {
       [BookLeadWorkflowStage.NEW]: [BookLeadStatus.NEW],
       [BookLeadWorkflowStage.IN_REVIEW]: [
         BookLeadStatus.REVIEWED,
@@ -569,7 +571,7 @@ export class BookLeadsService {
     const inquiries = await this.prisma.inquiry.findMany({
       where: {
         type: {
-          in: [InquiryType.stock, InquiryType.other],
+          in: [InquiryType.STOCK, InquiryType.OTHER],
         },
         status: {
           in: [
@@ -609,7 +611,7 @@ export class BookLeadsService {
     for (const inquiry of inquiries) {
       const firstUserMessage = inquiry.messages[0]?.message ?? '';
       if (
-        inquiry.type !== InquiryType.stock &&
+        inquiry.type !== InquiryType.STOCK &&
         !this.isLikelyStockInquiry(inquiry.subject, firstUserMessage)
       ) {
         continue;

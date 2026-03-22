@@ -29,7 +29,8 @@ export class UpdateEbookProgressDto {
 
   @ApiPropertyOptional({
     example: '2026-03-01T09:32:14.120Z',
-    description: 'Reader-open timestamp used to group autosaves into one session',
+    description:
+      'Reader-open timestamp used to group autosaves into one session',
   })
   @IsOptional()
   @IsDateString()

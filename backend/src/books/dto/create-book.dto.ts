@@ -73,7 +73,8 @@ export class CreateBookDto {
   price!: number;
 
   @ApiPropertyOptional({
-    description: 'eBook price (if sold digitally). Defaults to physical price if omitted.',
+    description:
+      'eBook price (if sold digitally). Defaults to physical price if omitted.',
     example: 9.99,
     minimum: 0.01,
   })

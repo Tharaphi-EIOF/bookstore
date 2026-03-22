@@ -34,7 +34,8 @@ export class UpdatePricingSettingsDto {
   vendorMarkupType?: PromotionDiscountType;
 
   @ApiPropertyOptional({
-    description: 'Markup value (percent or fixed amount depending on vendorMarkupType)',
+    description:
+      'Markup value (percent or fixed amount depending on vendorMarkupType)',
     example: 20,
     minimum: 0,
     maximum: 100000,

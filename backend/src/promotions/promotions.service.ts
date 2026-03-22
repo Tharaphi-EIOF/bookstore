@@ -23,16 +23,13 @@ export class PromotionsService {
     maxDiscountAmount?: number,
   ) {
     if (type === PromotionDiscountType.PERCENT && discountValue > 100) {
-      throw new BadRequestException(
-        'Percent discount cannot exceed 100.',
-      );
+      throw new BadRequestException('Percent discount cannot exceed 100.');
     }
 
-    if (
-      maxDiscountAmount !== undefined
-      && maxDiscountAmount <= 0
-    ) {
-      throw new BadRequestException('maxDiscountAmount must be greater than 0.');
+    if (maxDiscountAmount !== undefined && maxDiscountAmount <= 0) {
+      throw new BadRequestException(
+        'maxDiscountAmount must be greater than 0.',
+      );
     }
   }
 
@@ -49,7 +46,11 @@ export class PromotionsService {
   }
 
   async list(actorUserId: string, activeOnly?: boolean) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.reports.view');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.reports.view',
+    );
 
     return this.prisma.promotionCode.findMany({
       where: activeOnly ? { isActive: true } : undefined,
@@ -58,7 +59,11 @@ export class PromotionsService {
   }
 
   async create(actorUserId: string, dto: CreatePromotionDto) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.payout.manage');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.payout.manage',
+    );
 
     this.validateDateRange(dto.startsAt, dto.endsAt);
     this.validateDiscountRules(
@@ -85,7 +90,11 @@ export class PromotionsService {
   }
 
   async update(actorUserId: string, id: string, dto: UpdatePromotionDto) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.payout.manage');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.payout.manage',
+    );
 
     const existing = await this.prisma.promotionCode.findUnique({
       where: { id },
@@ -110,7 +119,10 @@ export class PromotionsService {
     this.validateDiscountRules(
       dto.discountType ?? existing.discountType,
       dto.discountValue ?? Number(existing.discountValue),
-      dto.maxDiscountAmount ?? (existing.maxDiscountAmount !== null ? Number(existing.maxDiscountAmount) : undefined),
+      dto.maxDiscountAmount ??
+        (existing.maxDiscountAmount !== null
+          ? Number(existing.maxDiscountAmount)
+          : undefined),
     );
 
     return this.prisma.promotionCode.update({
@@ -132,9 +144,16 @@ export class PromotionsService {
   }
 
   async remove(actorUserId: string, id: string) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.payout.manage');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.payout.manage',
+    );
 
-    const existing = await this.prisma.promotionCode.findUnique({ where: { id }, select: { id: true } });
+    const existing = await this.prisma.promotionCode.findUnique({
+      where: { id },
+      select: { id: true },
+    });
     if (!existing) {
       throw new NotFoundException('Promotion not found');
     }

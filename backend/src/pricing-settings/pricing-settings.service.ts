@@ -43,10 +43,18 @@ export class PricingSettingsService {
   }
 
   computeTaxAmount(taxRatePercent: number, taxableAmount: number): number {
-    return Number((Math.max(0, taxableAmount) * (Math.max(0, taxRatePercent) / 100)).toFixed(2));
+    return Number(
+      (
+        Math.max(0, taxableAmount) *
+        (Math.max(0, taxRatePercent) / 100)
+      ).toFixed(2),
+    );
   }
 
-  computeRetailPriceFromVendorCost(unitCost: number, settings: Pick<PricingSetting, 'vendorMarkupType' | 'vendorMarkupValue'>): number {
+  computeRetailPriceFromVendorCost(
+    unitCost: number,
+    settings: Pick<PricingSetting, 'vendorMarkupType' | 'vendorMarkupValue'>,
+  ): number {
     const safeCost = Math.max(0, Number(unitCost));
     const markupValue = Number(settings.vendorMarkupValue);
 
@@ -72,7 +80,11 @@ export class PricingSettingsService {
   }
 
   async getAdminSettings(actorUserId: string) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.payout.manage');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.payout.manage',
+    );
     return this.ensureSettingsRow();
   }
 
@@ -80,12 +92,17 @@ export class PricingSettingsService {
     actorUserId: string,
     dto: UpdatePricingSettingsDto,
   ) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.payout.manage');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.payout.manage',
+    );
     await this.ensureSuperAdmin(actorUserId);
 
     const current = await this.ensureSettingsRow();
     const markupType = dto.vendorMarkupType ?? current.vendorMarkupType;
-    const markupValue = dto.vendorMarkupValue ?? Number(current.vendorMarkupValue);
+    const markupValue =
+      dto.vendorMarkupValue ?? Number(current.vendorMarkupValue);
 
     if (markupType === PromotionDiscountType.PERCENT && markupValue > 1000) {
       throw new BadRequestException('Percent markup cannot exceed 1000%.');

@@ -5,4 +5,3 @@ export class UpdateStaffAccountAccessDto {
   @IsEnum(Role)
   role!: Role;
 }
-

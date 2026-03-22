@@ -2,6 +2,8 @@ import { mergeAttributes } from '@tiptap/core'
 import TiptapImage from '@tiptap/extension-image'
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tiptap/react'
 import { useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { resolveMediaUrl } from '@/lib/media'
+import { Check, Trash2 } from 'lucide-react'
 
 const MIN_IMAGE_WIDTH_PERCENT = 15
 const MAX_IMAGE_WIDTH_PERCENT = 100
@@ -64,7 +66,7 @@ export const ResizableImage = TiptapImage.extend({
   },
 })
 
-const ResizableImageNodeView = ({ node, updateAttributes, selected }: NodeViewProps) => {
+const ResizableImageNodeView = ({ node, updateAttributes, selected, deleteNode, editor, getPos }: NodeViewProps) => {
   const wrapperRef = useRef<HTMLSpanElement | null>(null)
   const width = normalizeWidth(typeof node.attrs.width === 'string' ? node.attrs.width : '100%')
 
@@ -104,25 +106,59 @@ const ResizableImageNodeView = ({ node, updateAttributes, selected }: NodeViewPr
     <NodeViewWrapper
       as="span"
       ref={wrapperRef}
-      className={`group relative my-4 inline-block max-w-full ${selected ? 'ring-2 ring-primary-400/55' : ''}`}
+      className={`group relative my-4 inline-block max-w-full align-bottom ${selected ? 'ring-2 ring-primary-400/55' : ''}`}
       style={{ width }}
       data-drag-handle
       draggable="true"
     >
       <img
-        src={node.attrs.src}
+        src={resolveMediaUrl(node.attrs.src)}
         alt={node.attrs.alt || 'Image'}
         title={node.attrs.title || ''}
         className="block h-auto w-full rounded-xl border border-slate-200 object-contain dark:border-slate-700"
         draggable
       />
-      <button
-        type="button"
-        onMouseDown={startResize}
-        className="absolute bottom-1 right-1 h-4 w-4 rounded-sm border border-white/75 bg-slate-900/75 opacity-0 shadow transition group-hover:opacity-100 group-focus-within:opacity-100"
-        aria-label="Resize image"
-        title="Drag to resize"
-      />
+      {selected && (
+        <button
+          type="button"
+          onMouseDown={startResize}
+          className="absolute bottom-1 right-1 h-4 w-4 cursor-ew-resize rounded-sm border border-white/75 bg-slate-900/80 shadow transition hover:bg-slate-800"
+          aria-label="Resize image"
+          title="Drag to resize"
+        />
+      )}
+      {selected && (
+        <div className="absolute right-2 top-2 flex items-center gap-1 rounded-md bg-slate-900/80 p-1 shadow-sm backdrop-blur-sm transition">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              if (typeof getPos === 'function') {
+                const pos = getPos()
+                editor.chain().focus().setTextSelection(pos + node.nodeSize).run()
+              } else {
+                editor.commands.focus()
+              }
+            }}
+            className="rounded p-1.5 text-emerald-400 transition-colors hover:bg-slate-800 hover:text-emerald-300 focus:outline-none"
+            title="Confirm size"
+          >
+            <Check className="h-4 w-4" />
+          </button>
+          <div className="h-4 w-px bg-slate-700" />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              deleteNode()
+            }}
+            className="rounded p-1.5 text-rose-400 transition-colors hover:bg-slate-800 hover:text-rose-300 focus:outline-none"
+            title="Remove image"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      )}
     </NodeViewWrapper>
   )
 }

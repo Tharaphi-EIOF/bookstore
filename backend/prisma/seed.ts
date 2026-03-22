@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { PrismaClient, Role, NotificationType, ReadingStatus } from '@prisma/client';
+import { PrismaClient, Role, NotificationType, ReadingStatus, InquiryType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -282,25 +282,25 @@ async function main() {
     link?: string;
   }> = [
     {
-      type: 'support_reply',
+      type: NotificationType.SUPPORT_REPLY,
       title: 'Staff replied to your inquiry',
       message: 'Our support team replied to your latest message.',
       link: '/contact/support',
     },
     {
-      type: 'announcement',
+      type: NotificationType.ANNOUNCEMENT,
       title: 'Weekend flash sale is live',
       message: 'Save up to 35% on selected bestsellers this weekend.',
       link: '/books',
     },
     {
-      type: 'inquiry_update',
+      type: NotificationType.INQUIRY_UPDATE,
       title: 'Your inquiry was updated',
       message: 'Your business inquiry status changed. Please review the latest update.',
       link: '/contact/business',
     },
     {
-      type: 'system',
+      type: NotificationType.SYSTEM,
       title: 'Library tips available',
       message: 'Track reading progress and set a daily goal from your library.',
       link: '/library',
@@ -650,6 +650,12 @@ async function main() {
         employeeCode: 'EMP-1001',
         title: 'HR Manager',
         status: 'ACTIVE',
+        dateJoined: new Date('2022-01-15T09:00:00Z'),
+        birthDate: new Date('1985-05-12T00:00:00Z'),
+        phoneNumber: '+1-555-010-1001',
+        personalEmail: 'hr.manager.personal@gmail.com',
+        homeAddress: '123 HR Lane, Springfield, IL 62704',
+        emergencyContact: 'Sarah Manager (Spouse) - 555-010-9999',
       },
     }),
     prisma.staffProfile.create({
@@ -659,6 +665,12 @@ async function main() {
         employeeCode: 'EMP-1002',
         title: 'HR Coordinator',
         status: 'ACTIVE',
+        dateJoined: new Date('2023-03-01T09:00:00Z'),
+        birthDate: new Date('1992-11-20T00:00:00Z'),
+        phoneNumber: '+1-555-010-1002',
+        personalEmail: 'hr.coord.personal@outlook.com',
+        homeAddress: 'Springfield, IL 62704',
+        emergencyContact: 'John Coord (Father) - 555-010-8888',
       },
     }),
     prisma.staffProfile.create({
@@ -668,6 +680,12 @@ async function main() {
         employeeCode: 'EMP-1101',
         title: 'Warehouse Supervisor',
         status: 'ACTIVE',
+        dateJoined: new Date('2021-06-10T08:30:00Z'),
+        birthDate: new Date('1980-02-28T00:00:00Z'),
+        phoneNumber: '+1-555-020-1101',
+        personalEmail: 'warehouse.sup.personal@hotmail.com',
+        homeAddress: '456 Depot Dr, Springfield, IL 62703',
+        emergencyContact: 'Mark Supervisor (Brother) - 555-020-7777',
       },
     }),
     prisma.staffProfile.create({
@@ -2288,7 +2306,7 @@ async function main() {
 
   const inquiryInputs = [
     {
-      type: 'payment' as const,
+      type: InquiryType.PAYMENT,
       subject: 'Payment posted but order still pending',
       priority: 'HIGH' as const,
       createdByUserId: users[4].id,
@@ -2297,7 +2315,7 @@ async function main() {
       createdAt: daysAgo(8, 9),
     },
     {
-      type: 'stock' as const,
+      type: InquiryType.STOCK,
       subject: 'Missing item in package',
       priority: 'URGENT' as const,
       createdByUserId: users[5].id,
@@ -2307,7 +2325,7 @@ async function main() {
       createdAt: daysAgo(6, 11),
     },
     {
-      type: 'order' as const,
+      type: InquiryType.ORDER,
       subject: 'Address update request for shipped order',
       priority: 'MEDIUM' as const,
       createdByUserId: users[6].id,
@@ -2317,7 +2335,7 @@ async function main() {
       createdAt: daysAgo(5, 10),
     },
     {
-      type: 'legal' as const,
+      type: InquiryType.LEGAL,
       subject: 'Invoice and tax compliance confirmation',
       priority: 'LOW' as const,
       createdByUserId: users[7].id,
@@ -2326,7 +2344,7 @@ async function main() {
       createdAt: daysAgo(4, 13),
     },
     {
-      type: 'stock' as const,
+      type: InquiryType.STOCK,
       subject: 'Book arrived damaged on delivery',
       priority: 'HIGH' as const,
       createdByUserId: users[8].id,
@@ -2336,7 +2354,7 @@ async function main() {
       createdAt: daysAgo(3, 12),
     },
     {
-      type: 'other' as const,
+      type: InquiryType.OTHER,
       subject: 'Need duplicate receipt copy',
       priority: 'LOW' as const,
       createdByUserId: users[9].id,
@@ -3052,7 +3070,7 @@ async function main() {
     data: [
       {
         userId: publishedBlogs[0].authorId,
-        type: 'blog_comment',
+        type: NotificationType.BLOG_COMMENT,
         title: 'New comment on your post',
         message: `${users[7].name} commented on "${publishedBlogs[0].title}".`,
         link: `/blogs/${publishedBlogs[0].id}`,
@@ -3060,7 +3078,7 @@ async function main() {
       },
       {
         userId: publishedBlogs[1].authorId,
-        type: 'blog_like',
+        type: NotificationType.BLOG_LIKE,
         title: 'Your poem got new likes',
         message: `${users[10].name} and others liked "${publishedBlogs[1].title}".`,
         link: `/blogs/${publishedBlogs[1].id}`,
@@ -3068,7 +3086,7 @@ async function main() {
       },
       {
         userId: publishedBlogs[2].authorId,
-        type: 'blog_follow',
+        type: NotificationType.BLOG_FOLLOW,
         title: 'You have a new follower',
         message: `${users[14].name} started following your writing.`,
         link: `/writers/${publishedBlogs[2].authorId}`,

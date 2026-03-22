@@ -1,6 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ReturnRequestStatus } from '@prisma/client';
-import { IsEnum, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class ReviewReturnRequestDto {
   @ApiProperty({

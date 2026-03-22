@@ -85,7 +85,10 @@ export class StoresController {
   @ApiBearerAuth('JWT-auth')
   @Permissions('warehouse.stock.update')
   @ApiOperation({ summary: 'Delete store (requires no active stock/orders)' })
-  deleteStore(@Request() req: { user: { sub: string } }, @Param('id') id: string) {
+  deleteStore(
+    @Request() req: { user: { sub: string } },
+    @Param('id') id: string,
+  ) {
     return this.storesService.deleteStore(id, req.user.sub);
   }
 
@@ -94,7 +97,10 @@ export class StoresController {
   @ApiBearerAuth('JWT-auth')
   @Permissions('warehouse.stock.update')
   @ApiOperation({ summary: 'Restore soft-deleted store from bin' })
-  restoreStore(@Request() req: { user: { sub: string } }, @Param('id') id: string) {
+  restoreStore(
+    @Request() req: { user: { sub: string } },
+    @Param('id') id: string,
+  ) {
     return this.storesService.restoreStore(id, req.user.sub);
   }
 
@@ -103,7 +109,10 @@ export class StoresController {
   @ApiBearerAuth('JWT-auth')
   @Permissions('warehouse.stock.update')
   @ApiOperation({ summary: 'Permanently delete store from bin' })
-  permanentDeleteStore(@Request() req: { user: { sub: string } }, @Param('id') id: string) {
+  permanentDeleteStore(
+    @Request() req: { user: { sub: string } },
+    @Param('id') id: string,
+  ) {
     return this.storesService.permanentDeleteStore(id, req.user.sub);
   }
 
@@ -112,7 +121,10 @@ export class StoresController {
   @ApiBearerAuth('JWT-auth')
   @Permissions('warehouse.view')
   @ApiOperation({ summary: 'Get store stock rows' })
-  getStoreStocks(@Request() req: { user: { sub: string } }, @Param('id') id: string) {
+  getStoreStocks(
+    @Request() req: { user: { sub: string } },
+    @Param('id') id: string,
+  ) {
     return this.storesService.getStoreStocks(id, req.user.sub);
   }
 

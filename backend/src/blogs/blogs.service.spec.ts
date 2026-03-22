@@ -99,7 +99,9 @@ describe('BlogsService', () => {
       status: 'PUBLISHED',
     });
 
-    expect(notificationsService.createUserNotification).toHaveBeenCalledTimes(2);
+    expect(notificationsService.createUserNotification).toHaveBeenCalledTimes(
+      2,
+    );
     expect(notificationsService.createUserNotification).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'u-2',

@@ -111,6 +111,7 @@ const AdminDepartmentsPage = () => {
                       <AdminIconActionButton
                         label="Toggle department status"
                         icon={<RefreshCw className="h-4 w-4" />}
+                        iconMotion="spin"
                         onClick={() => onToggleActive(department.id, department.isActive)}
                       />
                       <AdminIconActionButton

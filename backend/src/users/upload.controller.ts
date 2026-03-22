@@ -53,7 +53,11 @@ export class UploadController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: './uploads/avatars',
+        destination: (req, file, cb) => {
+          const dir = './uploads/avatars';
+          mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
         filename: (req, file, cb) => {
           const randomName = randomUUID();
           cb(null, `${randomName}${extname(file.originalname)}`);

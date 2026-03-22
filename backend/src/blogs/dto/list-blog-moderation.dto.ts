@@ -3,10 +3,10 @@ import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class ListBlogModerationDto {
-  @ApiPropertyOptional({ enum: ['PENDING_REVIEW', 'REJECTED', 'PUBLISHED', 'DRAFT'] })
+  @ApiPropertyOptional({ enum: ['PENDING_REVIEW', 'REJECTED', 'PUBLISHED'] })
   @IsOptional()
-  @IsIn(['PENDING_REVIEW', 'REJECTED', 'PUBLISHED', 'DRAFT'])
-  status?: 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED' | 'DRAFT';
+  @IsIn(['PENDING_REVIEW', 'REJECTED', 'PUBLISHED'])
+  status?: 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED';
 
   @ApiPropertyOptional({ description: 'Search by title or author name' })
   @IsOptional()

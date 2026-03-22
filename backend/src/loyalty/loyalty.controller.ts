@@ -8,11 +8,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
@@ -30,7 +26,9 @@ export class LoyaltyController {
   constructor(private readonly loyaltyService: LoyaltyService) {}
 
   @Get('me')
-  @ApiOperation({ summary: 'Get loyalty points, history, rewards, and personal coupon gifts' })
+  @ApiOperation({
+    summary: 'Get loyalty points, history, rewards, and personal coupon gifts',
+  })
   getMyDashboard(@Request() req: any) {
     return this.loyaltyService.getMyDashboard(req.user.sub);
   }

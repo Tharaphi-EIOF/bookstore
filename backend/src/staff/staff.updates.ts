@@ -13,6 +13,21 @@ export function buildStaffProfileUpdateData(dto: UpdateStaffProfileDto) {
     ...(dto.title !== undefined ? { title: dto.title } : {}),
     ...(dto.managerId !== undefined ? { managerId: dto.managerId } : {}),
     ...(dto.status !== undefined ? { status: dto.status } : {}),
+    ...(dto.dateJoined !== undefined
+      ? { dateJoined: new Date(dto.dateJoined) }
+      : {}),
+    ...(dto.birthDate !== undefined
+      ? { birthDate: dto.birthDate ? new Date(dto.birthDate) : null }
+      : {}),
+    ...(dto.phoneNumber !== undefined ? { phoneNumber: dto.phoneNumber } : {}),
+    ...(dto.personalEmail !== undefined
+      ? { personalEmail: dto.personalEmail }
+      : {}),
+    ...(dto.homeAddress !== undefined ? { homeAddress: dto.homeAddress } : {}),
+    ...(dto.emergencyContact !== undefined
+      ? { emergencyContact: dto.emergencyContact }
+      : {}),
+    ...(dto.salary !== undefined ? { salary: dto.salary } : {}),
   };
 }
 

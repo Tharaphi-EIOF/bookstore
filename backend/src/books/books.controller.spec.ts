@@ -4,6 +4,7 @@ import { BooksService } from './books.service';
 import { RolesGuard } from '../auth/roles.guard';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ExecutionContext } from '@nestjs/common';
+import { AuthService } from '../auth/auth.service';
 import * as fc from 'fast-check';
 
 describe('BooksController', () => {
@@ -22,6 +23,12 @@ describe('BooksController', () => {
             create: jest.fn(),
             update: jest.fn(),
             remove: jest.fn(),
+          },
+        },
+        {
+          provide: AuthService,
+          useValue: {
+            authenticateBearerToken: jest.fn(),
           },
         },
       ],
@@ -55,6 +62,7 @@ describe('BooksController', () => {
             description: fc.option(fc.string({ maxLength: 500 }), {
               nil: undefined,
             }),
+            categories: fc.array(fc.constant('Fiction'), { minLength: 1, maxLength: 1 }),
           }),
           async (bookData) => {
             // This test validates that the controller has proper guards configured

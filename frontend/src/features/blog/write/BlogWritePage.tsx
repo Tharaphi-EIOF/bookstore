@@ -3,11 +3,13 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getErrorMessage } from '@/lib/api'
 import {
+  extractStoredContentImageUrls,
   editableHtmlFromStoredContent,
   editorJsonToStoredContent,
   getStoredContentDisplayLines,
   getStoredContentPresentation,
   getStoredContentText,
+  hasStoredContentInlineImages,
   withStoredContentPresentation,
   type StoredContentPresentation,
 } from '@/lib/editor'
@@ -41,7 +43,13 @@ import {
   type StudioTheme,
 } from '@/features/blog/write/constants'
 import { useBooks } from '@/services/books'
-import { useBlogDetails, useCreateBlog, useUpdateBlog } from '@/features/blog/services/blogs'
+import {
+  useBlogDetails,
+  useCreateBlog,
+  useDeleteUploadedBlogImage,
+  useUpdateBlog,
+  useUploadBlogImage,
+} from '@/features/blog/services/blogs'
 import { useAuthStore } from '@/store/auth.store'
 import { useMotionValue, useReducedMotion, useSpring, useTransform } from 'framer-motion'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -90,6 +98,8 @@ const BlogWritePage = () => {
   const { user } = useAuthStore()
   const editBlogId = searchParams.get('blogId')?.trim() || null
   const createBlog = useCreateBlog()
+  const uploadBlogImage = useUploadBlogImage()
+  const deleteUploadedBlogImage = useDeleteUploadedBlogImage()
   const updateBlog = useUpdateBlog()
   const { data: booksData } = useBooks({ page: 1, limit: 80, status: 'active' })
 
@@ -150,6 +160,7 @@ const BlogWritePage = () => {
   const [isPoemNotesOpen, setIsPoemNotesOpen] = useState(false)
   const didHydrateEditorRef = useRef(false)
   const didHydrateRemoteRef = useRef(false)
+  const sessionUploadedImageUrlsRef = useRef<Set<string>>(new Set())
   const scheduleInputRef = useRef<HTMLInputElement | null>(null)
   const imageUploadInputRef = useRef<HTMLInputElement | null>(null)
   const backdropUploadInputRef = useRef<HTMLInputElement | null>(null)
@@ -437,17 +448,23 @@ const BlogWritePage = () => {
   }
 
   const handleImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+    const input = event.target
+    const file = input.files?.[0]
     if (!file || !editor) return
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      const src = typeof reader.result === 'string' ? reader.result : ''
-      if (!src) return
-      editor.chain().focus().setImage({ src, alt: resolveAutoImageAlt() }).run()
-      event.target.value = ''
-    }
-    reader.readAsDataURL(file)
+    setFeedback('Uploading image...')
+    void uploadBlogImage.mutateAsync(file)
+      .then(({ url }) => {
+        sessionUploadedImageUrlsRef.current.add(url)
+        editor.chain().focus().setImage({ src: url, alt: resolveAutoImageAlt() }).run()
+        setFeedback('Image added.')
+      })
+      .catch((error) => {
+        setFeedback(getErrorMessage(error))
+      })
+      .finally(() => {
+        input.value = ''
+      })
   }
 
   const handleBackdropFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -848,6 +865,21 @@ const BlogWritePage = () => {
     }
   }, [editor, isTypewriterMode])
 
+  // Unsaved uploads should be cleaned up if the image node is removed before save.
+  useEffect(() => {
+    const currentUrls = new Set(extractStoredContentImageUrls(content))
+    const pendingDeletes = [...sessionUploadedImageUrlsRef.current].filter((url) => !currentUrls.has(url))
+
+    if (pendingDeletes.length === 0) return
+
+    pendingDeletes.forEach((url) => {
+      sessionUploadedImageUrlsRef.current.delete(url)
+      void deleteUploadedBlogImage.mutateAsync(url).catch(() => {
+        // Best-effort cleanup only; saved-post updates also reconcile removed files.
+      })
+    })
+  }, [content, deleteUploadedBlogImage])
+
   const handlePointerMove = (event: MouseEvent<HTMLDivElement>) => {
     if (prefersReducedMotion) return
     const rect = event.currentTarget.getBoundingClientRect()
@@ -863,6 +895,10 @@ const BlogWritePage = () => {
   }
 
   const persistPost = async (nextStatus: 'DRAFT' | 'PUBLISHED') => {
+    if (hasStoredContentInlineImages(persistedContent)) {
+      throw new Error('Please re-upload inline images before saving this post.')
+    }
+
     const normalizedScheduledAt =
       nextStatus === 'PUBLISHED' ? null : toApiDateTime(scheduledAt)
     if (draftId) {
@@ -877,6 +913,7 @@ const BlogWritePage = () => {
         status: nextStatus,
         scheduledAt: normalizedScheduledAt,
       })
+      sessionUploadedImageUrlsRef.current.clear()
       return updated
     }
     const created = await createBlog.mutateAsync({
@@ -890,6 +927,7 @@ const BlogWritePage = () => {
       scheduledAt: normalizedScheduledAt,
     })
     setDraftId(created.id)
+    sessionUploadedImageUrlsRef.current.clear()
     return created
   }
 
@@ -957,7 +995,7 @@ const BlogWritePage = () => {
   return (
     // Main studio layout with the writing canvas, side tools, and publishing controls.
     <div
-      className={`relative overflow-x-hidden bg-gradient-to-b ${currentStudioAtmosphere.shellClass}`}
+      className={`relative overflow-x-clip bg-gradient-to-b ${currentStudioAtmosphere.shellClass}`}
       onMouseMove={handlePointerMove}
       onMouseLeave={resetParallax}
     >

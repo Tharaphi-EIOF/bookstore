@@ -31,9 +31,8 @@ import { ServeStaticModule } from '@nestjs/serve-static';
   imports: [
     // Uploaded media is served directly by Nest while API routes continue to live under `/api`.
     ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'uploads'),
+      rootPath: join(process.cwd(), process.cwd().endsWith('backend') ? 'uploads' : 'backend/uploads'),
       serveRoot: '/uploads',
-      // path-to-regexp (used by current express/router stack) requires named wildcards
       exclude: ['/api', '/api/*path'],
     }),
     // Core platform modules first.

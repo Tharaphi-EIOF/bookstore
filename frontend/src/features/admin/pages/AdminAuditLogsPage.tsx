@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import AdminPageIntro from '@/components/admin/AdminPageIntro'
+import AdminPaginationFooter from '@/components/admin/AdminPaginationFooter'
 import AuditLogDetailPanel from '@/features/admin/audit/components/AuditLogDetailPanel'
 import AuditLogFilters from '@/features/admin/audit/components/AuditLogFilters'
-import AuditLogHeaderStats from '@/features/admin/audit/components/AuditLogHeaderStats'
 import AuditLogTable from '@/features/admin/audit/components/AuditLogTable'
 import { useAuditLogs, type AuditLogEntry } from '@/features/admin/services/staff'
+
+const AUDIT_LOGS_PAGE_SIZE = 10
 
 const formatLabel = (value: string) =>
   value
@@ -190,6 +193,7 @@ const AdminAuditLogsPage = () => {
   const [resource, setResource] = useState('')
   const [action, setAction] = useState('')
   const [limit, setLimit] = useState(100)
+  const [page, setPage] = useState(1)
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null)
   const query = useAuditLogs({
     resource: resource.trim() || undefined,
@@ -199,30 +203,37 @@ const AdminAuditLogsPage = () => {
 
   // Derived filter options, KPI summaries, and flattened detail fields.
   const logs = query.data ?? []
+  const totalPages = Math.max(1, Math.ceil(logs.length / AUDIT_LOGS_PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
   const resourceOptions = useMemo(
     () => Array.from(new Set(logs.map((item) => item.resource))).sort(),
     [logs],
   )
+  const paginatedLogs = useMemo(() => {
+    const startIndex = (safePage - 1) * AUDIT_LOGS_PAGE_SIZE
+    return logs.slice(startIndex, startIndex + AUDIT_LOGS_PAGE_SIZE)
+  }, [logs, safePage])
 
-  const totalResources = useMemo(() => new Set(logs.map((item) => item.resource)).size, [logs])
-  const uniqueActors = useMemo(
-    () => new Set(logs.map((item) => item.actor?.id ?? item.actorUserId ?? 'system')).size,
-    [logs],
-  )
   const selectedFields = useMemo(
     () => flattenChanges(selectedEntry?.changes).slice(0, 20),
     [selectedEntry],
   )
 
+  useEffect(() => {
+    setPage(1)
+  }, [resource, action, limit])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
   return (
     <div className="luxe-shell min-h-screen p-8 dark:text-slate-100">
       <div className="mx-auto max-w-7xl">
         {/* Overview stats, filter controls, results table, and detail drawer. */}
-        <AuditLogHeaderStats
-          totalEntries={logs.length}
-          totalResources={totalResources}
-          uniqueActors={uniqueActors}
-        />
+        <AdminPageIntro title="Admin Audit Log" className="mb-6" />
         <AuditLogFilters
           resource={resource}
           setResource={setResource}
@@ -234,13 +245,20 @@ const AdminAuditLogsPage = () => {
           formatLabel={formatLabel}
         />
         <AuditLogTable
-          logs={logs}
+          logs={paginatedLogs}
           isLoading={query.isLoading}
           onSelectEntry={setSelectedEntry}
           formatLabel={formatLabel}
           getActionTone={getActionTone}
           buildSummary={buildSummary}
           buildHighlights={buildHighlights}
+        />
+        <AdminPaginationFooter
+          page={safePage}
+          totalPages={totalPages}
+          onPrev={() => setPage((current) => Math.max(1, current - 1))}
+          onNext={() => setPage((current) => Math.min(totalPages, current + 1))}
+          className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950"
         />
       </div>
 

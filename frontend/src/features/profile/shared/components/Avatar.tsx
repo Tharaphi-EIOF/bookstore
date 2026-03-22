@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { resolveMediaUrl } from '@/lib/media'
 
@@ -55,72 +56,72 @@ const Avatar = ({
   className,
   onClick,
 }: AvatarProps) => {
-  const avatarValue = rawAvatarValue || '🐶'
+  const avatarValue = rawAvatarValue || '👤'
   const backgroundColor = rawBackgroundColor || 'bg-slate-100'
+
+  const isUrlPath = typeof avatarValue === 'string' && (avatarValue.includes('/') || avatarValue.startsWith('http'))
+  const isLegacyId = typeof avatarValue === 'string' && avatarValue.startsWith('avatar-')
 
   let content: React.ReactNode
 
-  /**
-   * UPLOADED IMAGE AVATAR
-   */
-  if (!avatarValue) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-200 rounded-full">
-        👤
-      </div>
-    )
-  }
-  if (avatarType === 'upload' && avatarValue) {
+  if (avatarType === 'upload' && isUrlPath) {
     const imageSrc = resolveMediaUrl(avatarValue)
-
     content = (
       <img
         src={imageSrc}
-        alt=" "
+        alt="User avatar"
         className="w-full h-full object-cover"
       />
     )
-  } else {
-    /**
-     * EMOJI OR LEGACY AVATAR
-     */
-    const isLegacyId =
-      typeof avatarValue === 'string' && avatarValue.startsWith('avatar-')
-
-    if (isLegacyId) {
-      const avatarUrl =
-        AVATARS.find(a => a.id === avatarValue)?.url || AVATARS[0].url
-
-      content = (
-        <img
-          src={avatarUrl}
-          alt="User avatar"
-          className="w-full h-full object-contain"
-        />
-      )
-    } else {
-      // Emoji avatar
-      content = (
-        <span
+  } else if (avatarType === 'upload' && !isUrlPath) {
+    // Professional silhouette placeholder
+    content = (
+      <div className="flex h-full w-full items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <User 
           className={cn(
-            'flex items-center justify-center leading-none select-none',
+            'text-slate-300 dark:text-slate-700',
             {
-              'text-lg': size === 'sm',
-              'text-2xl': size === 'md',
-              'text-5xl': size === 'lg',
-              'text-6xl': size === 'xl',
+              'h-5 w-5': size === 'sm',
+              'h-6 w-6': size === 'md',
+              'h-14 w-14': size === 'lg',
+              'h-16 w-16': size === 'xl',
             }
           )}
-        >
-          {avatarValue}
-        </span>
-      )
-    }
+          strokeWidth={1.5}
+        />
+      </div>
+    )
+  } else if (isLegacyId) {
+    const avatarUrl = AVATARS.find(a => a.id === avatarValue)?.url || AVATARS[0].url
+    content = (
+      <img
+        src={avatarUrl}
+        alt="User avatar"
+        className="w-full h-full object-contain"
+      />
+    )
+  } else {
+    // Emoji avatar or placeholder
+    content = (
+      <span
+        className={cn(
+          'flex items-center justify-center leading-none select-none',
+          {
+            'text-lg': size === 'sm',
+            'text-2xl': size === 'md',
+            'text-5xl': size === 'lg',
+            'text-6xl': size === 'xl',
+          }
+        )}
+      >
+        {avatarValue.length > 2 ? '👤' : avatarValue}
+      </span>
+    )
   }
 
-  // Background applies ONLY to emoji avatars
-  const finalBg =
-    avatarType === 'upload' ? 'bg-transparent' : backgroundColor
+  // Background only for emojis
+  const showBackground = avatarType !== 'upload' || !isUrlPath
+  const finalBg = showBackground ? backgroundColor : 'bg-transparent'
 
   return (
     <motion.div
@@ -141,3 +142,4 @@ const Avatar = ({
 }
 
 export default Avatar
+

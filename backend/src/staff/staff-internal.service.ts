@@ -207,7 +207,9 @@ export class StaffInternalService {
       return value.trim() || 'Not set';
     }
     if (Array.isArray(value)) {
-      return value.length ? `${value.length} item${value.length > 1 ? 's' : ''}` : 'None';
+      return value.length
+        ? `${value.length} item${value.length > 1 ? 's' : ''}`
+        : 'None';
     }
     return 'Updated';
   }
@@ -217,10 +219,10 @@ export class StaffInternalService {
 
     return path.split('.').reduce<unknown>((current, segment) => {
       if (
-        current
-        && typeof current === 'object'
-        && !Array.isArray(current)
-        && segment in (current as Record<string, unknown>)
+        current &&
+        typeof current === 'object' &&
+        !Array.isArray(current) &&
+        segment in (current as Record<string, unknown>)
       ) {
         return (current as Record<string, unknown>)[segment];
       }
@@ -285,8 +287,8 @@ export class StaffInternalService {
       {
         label: 'Order ID',
         value:
-          this.getAuditPathValue(record, 'linkedOrderId')
-          ?? this.getAuditPathValue(record, 'metadata.orderId'),
+          this.getAuditPathValue(record, 'linkedOrderId') ??
+          this.getAuditPathValue(record, 'metadata.orderId'),
       },
       {
         label: 'Refund',
@@ -295,7 +297,10 @@ export class StaffInternalService {
     ];
 
     return candidates
-      .filter((item) => item.value !== undefined && item.value !== null && item.value !== '')
+      .filter(
+        (item) =>
+          item.value !== undefined && item.value !== null && item.value !== '',
+      )
       .slice(0, 4)
       .map((item) => ({
         label: item.label,
@@ -303,27 +308,35 @@ export class StaffInternalService {
       }));
   }
 
-  buildCreateAuditChanges(resource: string, record: AuditRecord, summary?: string) {
+  buildCreateAuditChanges(
+    resource: string,
+    record: AuditRecord,
+    summary?: string,
+  ) {
     const subject = this.extractAuditSubject(resource, record);
     return {
       mode: 'create',
       subject,
       summary:
-        summary
-        ?? `Created ${resource}${subject && subject !== resource ? ` ${subject}` : ''}.`,
+        summary ??
+        `Created ${resource}${subject && subject !== resource ? ` ${subject}` : ''}.`,
       highlights: this.buildAuditHighlights(record),
       current: record as unknown as Prisma.InputJsonValue,
     } as Prisma.InputJsonObject;
   }
 
-  buildDeleteAuditChanges(resource: string, record: AuditRecord, summary?: string) {
+  buildDeleteAuditChanges(
+    resource: string,
+    record: AuditRecord,
+    summary?: string,
+  ) {
     const subject = this.extractAuditSubject(resource, record);
     return {
       mode: 'delete',
       subject,
       summary:
-        summary
-        ?? `Removed ${resource}${subject && subject !== resource ? ` ${subject}` : ''}.`,
+        summary ??
+        `Removed ${resource}${subject && subject !== resource ? ` ${subject}` : ''}.`,
       highlights: this.buildAuditHighlights(record),
       previous: record as unknown as Prisma.InputJsonValue,
     } as Prisma.InputJsonObject;
@@ -336,14 +349,16 @@ export class StaffInternalService {
     trackedFields: string[],
     summary?: string,
   ) {
-    const subject = this.extractAuditSubject(resource, after) ?? this.extractAuditSubject(resource, before);
+    const subject =
+      this.extractAuditSubject(resource, after) ??
+      this.extractAuditSubject(resource, before);
     const fields = this.buildAuditFieldChanges(before, after, trackedFields);
     return {
       mode: 'update',
       subject,
       summary:
-        summary
-        ?? `Updated ${resource}${subject && subject !== resource ? ` ${subject}` : ''}.`,
+        summary ??
+        `Updated ${resource}${subject && subject !== resource ? ` ${subject}` : ''}.`,
       highlights: this.buildAuditHighlights(after),
       fields,
       before: before as unknown as Prisma.InputJsonValue,
@@ -417,6 +432,15 @@ export class StaffInternalService {
       managerId?: string;
       status?: StaffStatus;
       roleIds?: string[];
+      dateJoined?: string | Date;
+      birthDate?: string | Date;
+      phoneNumber?: string;
+      personalEmail?: string;
+      homeAddress?: string;
+      emergencyContact?: string;
+      avatarValue?: string;
+      avatarType?: string;
+      salary?: number | Prisma.Decimal;
     },
     actorUserId?: string,
   ) {
@@ -428,6 +452,16 @@ export class StaffInternalService {
       throw new BadRequestException('User already has a staff profile');
     }
 
+    if (payload.avatarValue || payload.avatarType) {
+      await tx.user.update({
+        where: { id: payload.userId },
+        data: {
+          avatarValue: payload.avatarValue,
+          avatarType: payload.avatarType,
+        },
+      });
+    }
+
     const profile = await tx.staffProfile.create({
       data: {
         userId: payload.userId,
@@ -437,6 +471,15 @@ export class StaffInternalService {
         title: payload.title,
         managerId: payload.managerId,
         status: payload.status ?? 'ACTIVE',
+        dateJoined: payload.dateJoined
+          ? new Date(payload.dateJoined)
+          : undefined,
+        birthDate: payload.birthDate ? new Date(payload.birthDate) : undefined,
+        phoneNumber: payload.phoneNumber,
+        personalEmail: payload.personalEmail,
+        homeAddress: payload.homeAddress,
+        emergencyContact: payload.emergencyContact,
+        salary: payload.salary,
       },
       include: {
         user: true,

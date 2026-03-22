@@ -57,9 +57,10 @@ describe('AuthService', () => {
     service = module.get<AuthService>(AuthService);
     prismaService = module.get<PrismaService>(PrismaService);
     jwtService = module.get<JwtService>(JwtService);
-    const mockedResolvePermissions = resolveUserPermissionKeys as jest.MockedFunction<
-      typeof resolveUserPermissionKeys
-    >;
+    const mockedResolvePermissions =
+      resolveUserPermissionKeys as jest.MockedFunction<
+        typeof resolveUserPermissionKeys
+      >;
     mockedResolvePermissions.mockResolvedValue(new Set<string>());
 
     // Reset mocks before each test

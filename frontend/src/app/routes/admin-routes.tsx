@@ -18,6 +18,7 @@ const AdminDepartmentsPage = lazy(() => import('@/features/admin/pages/AdminDepa
 const AdminRolesPermissionsPage = lazy(() => import('@/features/admin/pages/AdminRolesPermissionsPage'))
 const AdminStaffTasksPage = lazy(() => import('@/features/admin/pages/AdminStaffTasksPage'))
 const AdminPerformancePage = lazy(() => import('@/features/admin/pages/AdminPerformancePage'))
+const AdminPayrollPage = lazy(() => import('@/features/admin/pages/AdminPayrollPage'))
 const AdminAuditLogsPage = lazy(() => import('@/features/admin/pages/AdminAuditLogsPage'))
 const HRDashboardPage = lazy(() => import('@/features/admin/pages/HRDashboardPage'))
 const WarehouseDashboardPage = lazy(() => import('@/features/admin/pages/WarehouseDashboardPage'))
@@ -190,6 +191,10 @@ const renderAdminRoutes = ({ user, portalAccess }: AdminRoutesProps) => (
     <Route
       path="staff/performance"
       element={<PermissionRoute permission="hr.performance.manage"><AdminPerformancePage /></PermissionRoute>}
+    />
+    <Route
+      path="staff/payroll"
+      element={<PermissionRoute permission="finance.manage"><AdminPayrollPage /></PermissionRoute>}
     />
     <Route
       path="inquiries"

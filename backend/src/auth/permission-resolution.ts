@@ -23,9 +23,9 @@ export async function resolveUserPermissionKeys(
   }
 
   if (user.role === 'ADMIN') {
-    const adminPermissions = PERMISSION_CATALOG
-      .map((permission) => permission.key)
-      .filter((key) => !RESTRICTED_SYSTEM_PERMISSIONS.has(key));
+    const adminPermissions = PERMISSION_CATALOG.map(
+      (permission) => permission.key,
+    ).filter((key) => !RESTRICTED_SYSTEM_PERMISSIONS.has(key));
     return new Set(adminPermissions);
   }
 

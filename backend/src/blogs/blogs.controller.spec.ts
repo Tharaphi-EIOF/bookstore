@@ -51,7 +51,12 @@ describe('BlogsController', () => {
   it('delegates listBlogs', async () => {
     const req = { user: { sub: 'user-1' } };
     const dto = { authorId: 'author-1' } as any;
-    service.listBlogs.mockResolvedValue({ items: [], total: 0, page: 1, limit: 10 } as any);
+    service.listBlogs.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    } as any);
     await controller.listBlogs(dto, req);
     expect(service.listBlogs).toHaveBeenCalledWith(dto, 'user-1');
   });

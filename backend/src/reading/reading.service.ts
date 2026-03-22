@@ -150,9 +150,7 @@ export class ReadingService {
     });
 
     if (!paidOrderItem) {
-      throw new ForbiddenException(
-        'You must purchase this eBook first.',
-      );
+      throw new ForbiddenException('You must purchase this eBook first.');
     }
 
     const access = await this.prisma.userBookAccess.upsert({

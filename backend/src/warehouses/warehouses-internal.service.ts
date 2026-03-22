@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
+  NotificationType,
   PurchaseRequestStatus,
   Role,
   WarehouseAlertStatus,
@@ -35,7 +36,7 @@ export class WarehousesInternalService {
       subscriptions.map((subscription) =>
         this.notificationsService.createUserNotification({
           userId: subscription.userId,
-          type: 'stock_alert',
+          type: NotificationType.STOCK_ALERT,
           title: 'Back in stock',
           message: `${bookTitle} is available again.`,
           link: `/books/${bookId}`,
@@ -119,7 +120,11 @@ export class WarehousesInternalService {
       data: { stock: totalStock },
     });
 
-    if ((currentBook?.stock ?? 0) <= 0 && totalStock > 0 && currentBook?.title) {
+    if (
+      (currentBook?.stock ?? 0) <= 0 &&
+      totalStock > 0 &&
+      currentBook?.title
+    ) {
       await this.notifyBackInStock(bookId, currentBook.title);
     }
 

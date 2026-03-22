@@ -358,7 +358,9 @@ describe('ReadingService', () => {
 
   describe('removeSession', () => {
     it('deletes an existing session for the user', async () => {
-      prisma.readingSession.findFirst.mockResolvedValueOnce({ id: 'session-1' });
+      prisma.readingSession.findFirst.mockResolvedValueOnce({
+        id: 'session-1',
+      });
 
       const result = await service.removeSession(userId, 'session-1');
 
@@ -372,9 +374,9 @@ describe('ReadingService', () => {
     it('throws when session does not exist', async () => {
       prisma.readingSession.findFirst.mockResolvedValueOnce(null);
 
-      await expect(service.removeSession(userId, 'missing-session')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.removeSession(userId, 'missing-session'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

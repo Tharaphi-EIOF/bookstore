@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   InventoryLotSourceType,
   InventoryOwnershipType,
@@ -20,10 +24,17 @@ export class PartnerDealsService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async ensureAccess(actorUserId: string) {
-    await assertUserPermission(this.prisma, actorUserId, 'finance.reports.view');
+    await assertUserPermission(
+      this.prisma,
+      actorUserId,
+      'finance.reports.view',
+    );
   }
 
-  async list(actorUserId: string, query?: { status?: PartnerDealStatus; q?: string }) {
+  async list(
+    actorUserId: string,
+    query?: { status?: PartnerDealStatus; q?: string },
+  ) {
     await this.ensureAccess(actorUserId);
 
     const where = {
@@ -31,9 +42,21 @@ export class PartnerDealsService {
       ...(query?.q
         ? {
             OR: [
-              { partnerName: { contains: query.q, mode: 'insensitive' as const } },
-              { partnerCompany: { contains: query.q, mode: 'insensitive' as const } },
-              { termsNote: { contains: query.q, mode: 'insensitive' as const } },
+              {
+                partnerName: {
+                  contains: query.q,
+                  mode: 'insensitive' as const,
+                },
+              },
+              {
+                partnerCompany: {
+                  contains: query.q,
+                  mode: 'insensitive' as const,
+                },
+              },
+              {
+                termsNote: { contains: query.q, mode: 'insensitive' as const },
+              },
             ],
           }
         : {}),
@@ -61,16 +84,28 @@ export class PartnerDealsService {
   async create(actorUserId: string, dto: CreatePartnerDealDto) {
     await this.ensureAccess(actorUserId);
 
-    if (dto.effectiveTo && dto.effectiveFrom && dto.effectiveTo < dto.effectiveFrom) {
-      throw new BadRequestException('effectiveTo cannot be earlier than effectiveFrom');
+    if (
+      dto.effectiveTo &&
+      dto.effectiveFrom &&
+      dto.effectiveTo < dto.effectiveFrom
+    ) {
+      throw new BadRequestException(
+        'effectiveTo cannot be earlier than effectiveFrom',
+      );
     }
 
     if (dto.leadId) {
-      const lead = await this.prisma.bookLead.findUnique({ where: { id: dto.leadId }, select: { id: true } });
+      const lead = await this.prisma.bookLead.findUnique({
+        where: { id: dto.leadId },
+        select: { id: true },
+      });
       if (!lead) throw new NotFoundException('Linked lead not found');
     }
     if (dto.bookId) {
-      const book = await this.prisma.book.findUnique({ where: { id: dto.bookId }, select: { id: true } });
+      const book = await this.prisma.book.findUnique({
+        where: { id: dto.bookId },
+        select: { id: true },
+      });
       if (!book) throw new NotFoundException('Linked book not found');
     }
 
@@ -187,28 +222,46 @@ export class PartnerDealsService {
   async update(actorUserId: string, id: string, dto: UpdatePartnerDealDto) {
     await this.ensureAccess(actorUserId);
 
-    const existing = await this.prisma.partnerConsignmentDeal.findUnique({ where: { id } });
+    const existing = await this.prisma.partnerConsignmentDeal.findUnique({
+      where: { id },
+    });
     if (!existing) throw new NotFoundException('Partner deal not found');
 
     const effectiveFrom = dto.effectiveFrom ?? existing.effectiveFrom;
     const effectiveTo = dto.effectiveTo ?? existing.effectiveTo;
     if (effectiveTo && effectiveTo < effectiveFrom) {
-      throw new BadRequestException('effectiveTo cannot be earlier than effectiveFrom');
+      throw new BadRequestException(
+        'effectiveTo cannot be earlier than effectiveFrom',
+      );
     }
 
     return this.prisma.partnerConsignmentDeal.update({
       where: { id },
       data: {
-        ...(dto.partnerName !== undefined ? { partnerName: dto.partnerName.trim() } : {}),
-        ...(dto.partnerCompany !== undefined ? { partnerCompany: dto.partnerCompany?.trim() || null } : {}),
-        ...(dto.partnerEmail !== undefined ? { partnerEmail: dto.partnerEmail?.trim() || null } : {}),
+        ...(dto.partnerName !== undefined
+          ? { partnerName: dto.partnerName.trim() }
+          : {}),
+        ...(dto.partnerCompany !== undefined
+          ? { partnerCompany: dto.partnerCompany?.trim() || null }
+          : {}),
+        ...(dto.partnerEmail !== undefined
+          ? { partnerEmail: dto.partnerEmail?.trim() || null }
+          : {}),
         ...(dto.leadId !== undefined ? { leadId: dto.leadId || null } : {}),
         ...(dto.bookId !== undefined ? { bookId: dto.bookId || null } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
-        ...(dto.revenueSharePct !== undefined ? { revenueSharePct: dto.revenueSharePct } : {}),
-        ...(dto.effectiveFrom !== undefined ? { effectiveFrom: dto.effectiveFrom } : {}),
-        ...(dto.effectiveTo !== undefined ? { effectiveTo: dto.effectiveTo || null } : {}),
-        ...(dto.termsNote !== undefined ? { termsNote: dto.termsNote?.trim() || null } : {}),
+        ...(dto.revenueSharePct !== undefined
+          ? { revenueSharePct: dto.revenueSharePct }
+          : {}),
+        ...(dto.effectiveFrom !== undefined
+          ? { effectiveFrom: dto.effectiveFrom }
+          : {}),
+        ...(dto.effectiveTo !== undefined
+          ? { effectiveTo: dto.effectiveTo || null }
+          : {}),
+        ...(dto.termsNote !== undefined
+          ? { termsNote: dto.termsNote?.trim() || null }
+          : {}),
       },
       include: {
         book: { select: { id: true, title: true, author: true, isbn: true } },
@@ -220,7 +273,10 @@ export class PartnerDealsService {
   async listSettlements(actorUserId: string, dealId: string) {
     await this.ensureAccess(actorUserId);
 
-    const deal = await this.prisma.partnerConsignmentDeal.findUnique({ where: { id: dealId }, select: { id: true } });
+    const deal = await this.prisma.partnerConsignmentDeal.findUnique({
+      where: { id: dealId },
+      select: { id: true },
+    });
     if (!deal) throw new NotFoundException('Partner deal not found');
 
     return this.prisma.partnerSettlement.findMany({
@@ -283,10 +339,15 @@ export class PartnerDealsService {
       (sum, row) => sum + Number(row.price) * Number(row.quantity),
       0,
     );
-    const quantitySold = rows.reduce((sum, row) => sum + Number(row.quantity), 0);
+    const quantitySold = rows.reduce(
+      (sum, row) => sum + Number(row.quantity),
+      0,
+    );
     const orderCount = new Set(rows.map((row) => row.orderId)).size;
     const revenueSharePct = Number(deal.revenueSharePct);
-    const partnerShareAmount = Number(((gross * revenueSharePct) / 100).toFixed(2));
+    const partnerShareAmount = Number(
+      ((gross * revenueSharePct) / 100).toFixed(2),
+    );
 
     return {
       dealId,
@@ -302,17 +363,27 @@ export class PartnerDealsService {
     };
   }
 
-  async createSettlement(actorUserId: string, dealId: string, dto: CreatePartnerSettlementDto) {
+  async createSettlement(
+    actorUserId: string,
+    dealId: string,
+    dto: CreatePartnerSettlementDto,
+  ) {
     await this.ensureAccess(actorUserId);
 
-    const deal = await this.prisma.partnerConsignmentDeal.findUnique({ where: { id: dealId } });
+    const deal = await this.prisma.partnerConsignmentDeal.findUnique({
+      where: { id: dealId },
+    });
     if (!deal) throw new NotFoundException('Partner deal not found');
     if (dto.periodEnd < dto.periodStart) {
-      throw new BadRequestException('periodEnd cannot be earlier than periodStart');
+      throw new BadRequestException(
+        'periodEnd cannot be earlier than periodStart',
+      );
     }
 
     const gross = Math.max(0, Number(dto.grossSalesAmount));
-    const share = Number(((gross * Number(deal.revenueSharePct)) / 100).toFixed(2));
+    const share = Number(
+      ((gross * Number(deal.revenueSharePct)) / 100).toFixed(2),
+    );
 
     return this.prisma.partnerSettlement.create({
       data: {
@@ -327,7 +398,11 @@ export class PartnerDealsService {
     });
   }
 
-  async markSettlementPaid(actorUserId: string, dealId: string, settlementId: string) {
+  async markSettlementPaid(
+    actorUserId: string,
+    dealId: string,
+    settlementId: string,
+  ) {
     await this.ensureAccess(actorUserId);
 
     const settlement = await this.prisma.partnerSettlement.findFirst({

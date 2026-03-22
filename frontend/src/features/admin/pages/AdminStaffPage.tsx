@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { getErrorMessage } from '@/lib/api'
+import { api, getErrorMessage } from '@/lib/api'
 import { useHasPermission } from '@/lib/permissions'
 import {
   useCreateStaffAccount,
@@ -15,7 +15,10 @@ import {
   useUpdateStaffProfile,
   type StaffStatus,
 } from '@/features/admin/services/staff'
-import { BarChart3, Pencil, ListTodo, Plus } from 'lucide-react'
+import { useStaffPerformance } from '@/features/admin/services/staff-performance'
+import { useStaffPayrolls, useGeneratePayroll, useUpdatePayroll } from '@/features/admin/services/staff-payroll'
+import { BarChart3, Pencil, ListTodo, Plus, Mail, Phone, MapPin, Gift, Briefcase, User as UserIcon, ShieldAlert, Camera, Receipt, CreditCard, CalendarDays, Clock, History } from 'lucide-react'
+import { format, isValid } from 'date-fns'
 import { useTimedMessage } from '@/hooks/useTimedMessage'
 import ColumnVisibilityMenu from '@/components/admin/ColumnVisibilityMenu'
 import AdminSlideOverPanel from '@/components/admin/AdminSlideOverPanel'
@@ -23,6 +26,7 @@ import AdminNotice from '@/components/admin/AdminNotice'
 import AdminPageIntro from '@/components/admin/AdminPageIntro'
 import AdminSurfacePanel from '@/components/admin/AdminSurfacePanel'
 import { useAuthStore } from '@/store/auth.store'
+import Avatar from '@/features/profile/shared/components/Avatar'
 
 const statusOptions: StaffStatus[] = ['ACTIVE', 'ON_LEAVE', 'INACTIVE']
 
@@ -33,6 +37,7 @@ const AdminStaffPage = () => {
   const canCreateStaff = useHasPermission('hr.staff.create')
   const canEditStaff = useHasPermission('hr.staff.update')
   const canEditAccountAccess = currentUser?.role === 'SUPER_ADMIN'
+  const canViewSalary = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN' || currentUser?.staffDepartmentName === 'Finance'
   const [departmentId, setDepartmentId] = useState('')
   const [roleId, setRoleId] = useState('')
   const [status, setStatus] = useState<StaffStatus | ''>('')
@@ -74,7 +79,17 @@ const AdminStaffPage = () => {
     departmentId: '',
     status: 'ACTIVE' as StaffStatus,
     accountRole: 'USER' as 'USER' | 'ADMIN' | 'SUPER_ADMIN',
+    dateJoined: '',
+    birthDate: '',
+    phoneNumber: '',
+    personalEmail: '',
+    homeAddress: '',
+    emergencyContact: '',
+    salary: '',
+    avatarValue: '',
+    avatarType: 'emoji' as 'emoji' | 'upload',
   })
+  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false)
   const { message, showMessage } = useTimedMessage(2400)
 
   const { data: departments = [] } = useDepartments()
@@ -85,6 +100,20 @@ const AdminStaffPage = () => {
     roleId: roleId || undefined,
     status: status || undefined,
   })
+
+  const { data: performance } = useStaffPerformance(
+    { staffId: selectedStaffId || undefined },
+    { enabled: Boolean(selectedStaffId && isDetailsPanelOpen) }
+  )
+
+  const { data: payrolls = [] } = useStaffPayrolls(
+    { staffId: selectedStaffId || undefined }
+  )
+
+  const generatePayroll = useGeneratePayroll()
+  const updatePayroll = useUpdatePayroll()
+
+  const [activeTab, setActiveTab] = useState<'profile' | 'payroll'>('profile')
 
   const { data: users = [] } = useStaffCandidates(candidateSearch, { enabled: canCreateStaff && createMode === 'existing' })
 
@@ -141,6 +170,15 @@ const AdminStaffPage = () => {
       departmentId: selectedStaff.departmentId || '',
       status: selectedStaff.status || 'ACTIVE',
       accountRole: selectedStaff.user.role,
+      dateJoined: selectedStaff.dateJoined || '',
+      birthDate: selectedStaff.birthDate || '',
+      phoneNumber: selectedStaff.phoneNumber || '',
+      personalEmail: selectedStaff.personalEmail || '',
+      homeAddress: selectedStaff.homeAddress || '',
+      emergencyContact: selectedStaff.emergencyContact || '',
+      salary: selectedStaff.salary ? String(selectedStaff.salary) : '',
+      avatarValue: selectedStaff.user.avatarValue || '',
+      avatarType: (selectedStaff.user.avatarType as 'emoji' | 'upload') || 'emoji',
     })
   }, [selectedStaff])
 
@@ -148,6 +186,12 @@ const AdminStaffPage = () => {
   const openEditModal = (staffId: string) => {
     setSelectedStaffId(staffId)
     setIsEditModalOpen(true)
+    setIsDetailsPanelOpen(false)
+  }
+
+  const openDetailsPanel = (staffId: string) => {
+    setSelectedStaffId(staffId)
+    setIsDetailsPanelOpen(true)
   }
 
   const handleHireExistingUser = async (e: React.FormEvent) => {
@@ -223,6 +267,24 @@ const AdminStaffPage = () => {
     }
   }
 
+  const handleAvatarUpload = async (file: File) => {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await api.post('/users/upload-avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setEditForm((prev) => ({
+        ...prev,
+        avatarValue: data.url,
+        avatarType: 'upload',
+      }))
+      showMessage('Avatar uploaded. Remember to save changes.')
+    } catch (error) {
+      showMessage(getErrorMessage(error))
+    }
+  }
+
   const handleUpdateSelectedStaff = async () => {
     if (!selectedStaffId) {
       showMessage('Select a staff row first.')
@@ -242,6 +304,15 @@ const AdminStaffPage = () => {
           employeeCode: editForm.employeeCode,
           departmentId: editForm.departmentId,
           status: editForm.status,
+          dateJoined: editForm.dateJoined || undefined,
+          birthDate: editForm.birthDate || undefined,
+          phoneNumber: editForm.phoneNumber || undefined,
+          personalEmail: editForm.personalEmail || undefined,
+          homeAddress: editForm.homeAddress || undefined,
+          emergencyContact: editForm.emergencyContact || undefined,
+          salary: editForm.salary ? Number(editForm.salary) : undefined,
+          avatarValue: editForm.avatarValue || undefined,
+          avatarType: editForm.avatarType || undefined,
         },
       })
 
@@ -361,8 +432,8 @@ const AdminStaffPage = () => {
                 {filteredProfiles.map((profile) => (
                   <tr
                     key={profile.id}
-                    className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/70 ${selectedStaffId === profile.id ? 'bg-amber-50 dark:bg-amber-900/20' : ''}`}
-                    onClick={() => setSelectedStaffId(profile.id)}
+                    className={`cursor-pointer transition hover:bg-slate-50 dark:hover:bg-slate-800/70 ${selectedStaffId === profile.id ? 'bg-amber-50 dark:bg-amber-900/20' : ''}`}
+                    onClick={() => openDetailsPanel(profile.id)}
                   >
                     {visibleColumns.staff && (
                       <td className="px-3 py-2">
@@ -664,18 +735,317 @@ const AdminStaffPage = () => {
         )}
       </AdminSlideOverPanel>
 
+
+      {/* Staff Detail Slider / Drawer */}
+      <AdminSlideOverPanel
+        open={Boolean(isDetailsPanelOpen && selectedStaff)}
+        onClose={() => setIsDetailsPanelOpen(false)}
+        kicker="Team Member"
+        title="Staff Profile"
+        description="Detailed overview of staff identity and performance."
+        footer={(
+          <div className="flex items-center justify-between gap-3 w-full">
+             <button
+              type="button"
+              onClick={() => {
+                 navigate('/admin/staff/tasks')
+              }}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold uppercase tracking-widest text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <ListTodo className="h-4 w-4" />
+              Tasks
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsDetailsPanelOpen(false)}
+                className="rounded-xl px-4 py-2.5 text-xs font-semibold uppercase tracking-widest text-slate-500 transition hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => openEditModal(selectedStaffId)}
+                className="rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-slate-800 active:scale-[0.99] dark:bg-amber-400 dark:text-slate-900 dark:hover:bg-amber-300"
+              >
+                Edit Info
+              </button>
+            </div>
+          </div>
+        )}
+      >
+        {selectedStaff && (
+          <div className="space-y-6 pb-20">
+            {/* Header: Circular Avatar & Identity */}
+            <div className="flex flex-col items-center justify-center space-y-4 pt-4">
+              <div className="group relative">
+                <Avatar
+                  avatarType={(selectedStaff?.user.avatarType as 'emoji' | 'upload') || 'emoji'}
+                  avatarValue={selectedStaff?.user.avatarValue || undefined}
+                  size="xl"
+                />
+                <div className={`absolute bottom-1 right-1 h-6 w-6 rounded-full border-4 border-white dark:border-slate-900 ${selectedStaff?.status === 'ACTIVE' ? 'bg-emerald-500' : selectedStaff?.status === 'ON_LEAVE' ? 'bg-amber-500' : 'bg-slate-400'}`} />
+              </div>
+
+              <div className="text-center">
+                <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                  {selectedStaff?.user.name}
+                </h3>
+                <p className="flex items-center justify-center gap-1 text-sm text-slate-500">
+                  <Mail className="h-3 w-3" />
+                  {selectedStaff?.user.email}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex border-b border-slate-100 dark:border-slate-800">
+              <button
+                onClick={() => setActiveTab('profile')}
+                className={`px-6 py-3 text-xs font-bold uppercase tracking-widest transition ${activeTab === 'profile' ? 'border-b-2 border-slate-900 text-slate-900 dark:border-amber-400 dark:text-amber-400' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                Profile
+              </button>
+              {canViewSalary && (
+                <button
+                  onClick={() => setActiveTab('payroll')}
+                  className={`px-6 py-3 text-xs font-bold uppercase tracking-widest transition ${activeTab === 'payroll' ? 'border-b-2 border-slate-900 text-slate-900 dark:border-amber-400 dark:text-amber-400' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  Payroll
+                </button>
+              )}
+            </div>
+
+            {activeTab === 'profile' ? (
+              <>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Tasks</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
+                  {performance?.summary?.totalTasks ?? (selectedStaff?._count?.tasks || 0)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Performance</p>
+                <p className="mt-1 text-2xl font-bold text-emerald-500">
+                   {performance?.summary?.completionRate ?? 0}%
+                </p>
+              </div>
+            </div>
+
+            {/* Employment Info */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2 dark:border-slate-800">
+                <Briefcase className="h-4 w-4 text-slate-400" />
+                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400">Employment Info</h4>
+              </div>
+              <div className="grid grid-cols-2 gap-y-4">
+                <div>
+                  <p className="text-[10px] text-slate-500">Job Title</p>
+                  <p className="text-sm font-medium">{selectedStaff?.title}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">Employee Code</p>
+                  <p className="font-mono text-sm font-medium">{selectedStaff?.employeeCode}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">Department</p>
+                  <p className="text-sm font-medium">{selectedStaff?.department.name}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">Current Status</p>
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${selectedStaff?.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40' : 'bg-slate-100 text-slate-700 dark:bg-slate-800'}`}>
+                    {selectedStaff?.status}
+                  </span>
+                </div>
+                <div>
+                   <p className="text-[10px] text-slate-500">Date Joined</p>
+                   <p className="text-sm font-medium">
+                      {selectedStaff?.dateJoined && isValid(new Date(selectedStaff.dateJoined)) ? format(new Date(selectedStaff.dateJoined), 'PPP') : 'Not set'}
+                   </p>
+                </div>
+                {canViewSalary && (
+                  <div>
+                    <p className="text-[10px] text-slate-500">Salary</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-amber-400">
+                      {selectedStaff?.salary 
+                        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(selectedStaff.salary)) 
+                        : 'Not set'}
+                    </p>
+                  </div>
+                 )}
+              </div>
+            </div>
+
+            {/* Personal Details */}
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2 dark:border-slate-800">
+                <UserIcon className="h-4 w-4 text-slate-400" />
+                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400">Personal Details</h4>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-1 rounded-lg bg-indigo-50 p-2 text-indigo-500 dark:bg-indigo-900/30">
+                    <Gift className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500">Birthday</p>
+                    <p className="text-sm font-medium">
+                      {selectedStaff?.birthDate && isValid(new Date(selectedStaff.birthDate)) 
+                        ? format(new Date(selectedStaff.birthDate), 'MMMM dd, yyyy') 
+                        : 'Not documented'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="mt-1 rounded-lg bg-sky-50 p-2 text-sky-500 dark:bg-sky-900/30">
+                    <Phone className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500">Phone Number</p>
+                    <p className="text-sm font-medium">{selectedStaff?.phoneNumber || 'Not provided'}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="mt-1 rounded-lg bg-emerald-50 p-2 text-emerald-500 dark:bg-emerald-900/30">
+                    <ShieldAlert className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500">Emergency Contact</p>
+                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{selectedStaff?.emergencyContact || 'None listed'}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="mt-1 rounded-lg bg-slate-100 p-2 text-slate-500 dark:bg-slate-800">
+                    <MapPin className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500">Home Address</p>
+                    <p className="text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
+                      {selectedStaff?.homeAddress || 'Address not registered in staff directory.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            </>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between rounded-2xl bg-slate-900 p-6 text-white dark:bg-amber-400 dark:text-slate-900">
+                  <div>
+                    <h4 className="text-sm font-bold uppercase tracking-widest opacity-80">Monthly Salary</h4>
+                    <p className="mt-1 text-3xl font-black">
+                      {selectedStaff?.salary 
+                        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(selectedStaff.salary) / 12) 
+                        : '$0.00'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const now = new Date();
+                      generatePayroll.mutate({
+                        staffId: selectedStaff!.id,
+                        month: now.getMonth() + 1,
+                        year: now.getFullYear()
+                      }, {
+                        onSuccess: () => showMessage('Payroll generated for current month.')
+                      });
+                    }}
+                    disabled={generatePayroll.isPending}
+                    className="flex items-center gap-2 rounded-xl bg-white/20 px-4 py-3 text-xs font-bold uppercase tracking-widest transition hover:bg-white/30 disabled:opacity-50"
+                  >
+                    {generatePayroll.isPending ? <Clock className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}
+                    Generate {format(new Date(), 'MMMM')}
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <h5 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    <History className="h-4 w-4" />
+                    Payment History
+                  </h5>
+                  
+                  {payrolls.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 py-12 text-center dark:border-slate-800">
+                       <CreditCard className="mb-3 h-8 w-8 text-slate-300" />
+                       <p className="text-sm text-slate-500 font-medium">No payroll records found.</p>
+                       <p className="text-xs text-slate-400">Records will appear after generation.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {payrolls.map((payroll) => (
+                        <div key={payroll.id} className="group relative rounded-2xl border border-slate-100 bg-white p-4 transition-all hover:border-slate-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/40">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <CalendarDays className="h-4 w-4 text-slate-400" />
+                              <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                {format(new Date(payroll.periodStart), 'MMMM yyyy')}
+                              </span>
+                            </div>
+                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-tighter ${
+                              payroll.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 
+                              payroll.status === 'CANCELLED' ? 'bg-rose-100 text-rose-700' : 
+                              'bg-amber-100 text-amber-700'
+                            }`}>
+                              {payroll.status}
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-3 gap-4 border-t border-slate-50 pt-3 dark:border-slate-800/50">
+                             <div>
+                               <p className="text-[10px] uppercase font-bold text-slate-400">Base</p>
+                               <p className="text-sm font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(payroll.amount)}</p>
+                             </div>
+                             <div>
+                               <p className="text-[10px] uppercase font-bold text-slate-400">Bonus</p>
+                               <p className="text-sm font-semibold text-emerald-600">+{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(payroll.bonus)}</p>
+                             </div>
+                             <div>
+                               <p className="text-[10px] uppercase font-bold text-slate-400">Net Pay</p>
+                               <p className="text-sm font-black text-slate-900 dark:text-white">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(payroll.netAmount)}</p>
+                             </div>
+                          </div>
+
+                          {payroll.status === 'PENDING' && (
+                            <button
+                              onClick={() => {
+                                updatePayroll.mutate({ id: payroll.id, status: 'PAID' }, {
+                                  onSuccess: () => showMessage('Payroll marked as paid.')
+                                });
+                              }}
+                              disabled={updatePayroll.isPending}
+                              className="mt-4 w-full rounded-xl bg-slate-100 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-600 transition hover:bg-slate-900 hover:text-white dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-amber-400 dark:hover:text-slate-900"
+                            >
+                              Mark as Paid
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </AdminSlideOverPanel>
+
       <AdminSlideOverPanel
         open={Boolean(isEditModalOpen && selectedStaff)}
         onClose={() => setIsEditModalOpen(false)}
-        kicker="Edit Staff"
-        title={selectedStaff?.user.name || 'Staff'}
-        description={selectedStaff ? selectedStaff.user.email : ''}
+        kicker="Update Staff"
+        title="Edit Profile"
+        description="Modify staff identity, employment status, and personal info."
         footer={(
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-end gap-2 w-full">
             <button
               type="button"
               onClick={() => setIsEditModalOpen(false)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold uppercase tracking-widest transition hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800"
+              className="rounded-xl px-4 py-2.5 text-xs font-semibold uppercase tracking-widest text-slate-500 transition hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               Cancel
             </button>
@@ -685,7 +1055,7 @@ const AdminStaffPage = () => {
               disabled={
                 updateStaffProfile.isPending || updateStaffAccountAccess.isPending
               }
-              className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-slate-800 active:scale-[0.99] disabled:opacity-60 dark:bg-amber-400 dark:text-slate-900 dark:hover:bg-amber-300"
+              className="rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-slate-800 active:scale-[0.99] disabled:opacity-60 dark:bg-amber-400 dark:text-slate-900 dark:hover:bg-amber-300"
             >
               {updateStaffProfile.isPending || updateStaffAccountAccess.isPending
                 ? 'Saving...'
@@ -694,7 +1064,33 @@ const AdminStaffPage = () => {
           </div>
         )}
       >
-        <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/45">
+        <div className="space-y-6">
+          {/* Avatar Edit Section */}
+          <div className="flex flex-col items-center justify-center space-y-4 py-2">
+            <div className="relative">
+              <Avatar
+                avatarType="upload"
+                avatarValue={editForm.avatarValue}
+                size="xl"
+              />
+              <label className="absolute bottom-0 right-0 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-slate-900 text-white shadow-lg transition hover:bg-slate-800 dark:bg-amber-400 dark:text-slate-900 dark:hover:bg-amber-300">
+                <Camera className="h-5 w-5" />
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleAvatarUpload(file)
+                  }}
+                />
+              </label>
+            </div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Staff Photo</p>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/45">
+            <h5 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Work Info</h5>
               <input
                 value={editForm.title}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
@@ -730,6 +1126,74 @@ const AdminStaffPage = () => {
                   </option>
                 ))}
               </select>
+              <div className="pt-2">
+                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Date Joined</p>
+                <input
+                  type="date"
+                  value={editForm.dateJoined ? new Date(editForm.dateJoined).toISOString().split('T')[0] : ''}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, dateJoined: e.target.value }))}
+                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900"
+                />
+              </div>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/45">
+            <h5 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Personal Info</h5>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Birthday</p>
+                  <input
+                    type="date"
+                    value={editForm.birthDate ? new Date(editForm.birthDate).toISOString().split('T')[0] : ''}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, birthDate: e.target.value }))}
+                    className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900"
+                  />
+                </div>
+                <div>
+                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Phone</p>
+                  <input
+                    value={editForm.phoneNumber}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, phoneNumber: e.target.value }))}
+                    placeholder="+1 (555) 000-0000"
+                    className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900"
+                  />
+                </div>
+              </div>
+              <input
+                value={editForm.personalEmail}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, personalEmail: e.target.value }))}
+                placeholder="Personal email"
+                className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900"
+               />
+               {canViewSalary && (
+                 <div>
+                    <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Monthly/Annual Salary</p>
+                    <input
+                      type="number"
+                      value={editForm.salary}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, salary: e.target.value }))}
+                      placeholder="e.g. 50000"
+                      className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900"
+                    />
+                 </div>
+               )}
+               <input
+                value={editForm.emergencyContact}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, emergencyContact: e.target.value }))}
+                placeholder="Emergency contact (Name & Phone)"
+                className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900"
+              />
+              <textarea
+                value={editForm.homeAddress}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, homeAddress: e.target.value }))}
+                placeholder="Home address"
+                rows={3}
+                className="w-full rounded-xl border border-slate-300 bg-white p-3 text-sm dark:border-slate-600 dark:bg-slate-900"
+              />
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/45">
+            <h5 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Access Control</h5>
               {canEditAccountAccess && (
                 <select
                   value={editForm.accountRole}
@@ -746,6 +1210,7 @@ const AdminStaffPage = () => {
                   <option value="SUPER_ADMIN">SUPER_ADMIN</option>
                 </select>
               )}
+          </div>
         </div>
       </AdminSlideOverPanel>
     </div>

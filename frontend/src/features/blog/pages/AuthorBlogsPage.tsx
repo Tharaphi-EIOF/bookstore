@@ -88,15 +88,22 @@ const getPoemPreviewLines = (blog: Blog, maxLines = 4) => {
   if (typeof window === 'undefined') return []
 
   const html = renderStoredContentHtml(blog.content)
-  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html')
-  const lines = Array.from(doc.body.querySelectorAll('p, blockquote'))
-    .map((node) => (node.textContent || '').replace(/\s+/g, ' ').trim())
+  const normalizedHtml = html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n</p>')
+    .replace(/<\/div>/gi, '\n</div>')
+  
+  const doc = new DOMParser().parseFromString(`<div>${normalizedHtml}</div>`, 'text/html')
+  
+  const lines = (doc.body.textContent || '')
+    .split(/\n/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean)
 
   if (lines.length > 0) return lines.slice(0, maxLines)
 
   return getStoredContentText(blog.content)
-    .split(/[.?!]\s+|\n+/)
+    .split(/\n+/)
     .map((line) => line.trim())
     .filter(Boolean)
     .slice(0, maxLines)
@@ -284,7 +291,7 @@ const PoemFeedCard = ({
   isLiked: boolean
   onToggleLike: (blog: Blog, liked: boolean) => void
 }) => {
-  const poemLines = getPoemPreviewLines(blog, 5)
+  const poemLines = getPoemPreviewLines(blog, 4)
 
   return (
     <article className="mx-auto max-w-3xl border-b border-slate-200/80 pb-8 text-center last:border-b-0 dark:border-white/10">
@@ -299,10 +306,13 @@ const PoemFeedCard = ({
           {blog.subtitle && (
             <p className="mt-3 text-base italic text-slate-500 dark:text-slate-400">{blog.subtitle}</p>
           )}
-          <div className="mx-auto mt-8 max-w-2xl space-y-2 text-left text-[20px] leading-10 text-slate-700 dark:text-slate-300">
+          <div className="mx-auto mt-8 max-w-2xl space-y-2 text-left text-[20px] leading-[1.6] text-slate-700 dark:text-slate-300">
             {poemLines.map((line, index) => (
               <p key={`${blog.id}-poem-shelf-line-${index}`}>{line}</p>
             ))}
+            <p className="pt-2 text-[16px] font-semibold text-slate-500 transition-colors hover:text-amber-600 dark:hover:text-amber-400">
+              See more...
+            </p>
           </div>
         </Link>
         <div className="mt-6 flex items-center justify-center gap-4 text-sm text-slate-500 dark:text-slate-400">
@@ -372,9 +382,10 @@ const SidebarSection = ({
 const AuthorBlogsPage = () => {
   // Feed selection and tag filters live in the URL so the page is linkable/shareable.
   const { isAuthenticated, user } = useAuthStore()
-  const [tab, setTab] = useState<BlogFeedTab>('for_you')
-  const [page, setPage] = useState(1)
   const [searchParams, setSearchParams] = useSearchParams()
+  const rawTab = searchParams.get('tab') as BlogFeedTab | null
+  const tab = rawTab || 'for_you'
+  const [page, setPage] = useState(1)
   const selectedTags = useMemo(() => readTagsFromParams(searchParams), [searchParams])
   const selectedTagSet = useMemo(() => new Set(selectedTags), [selectedTags])
 
@@ -540,7 +551,15 @@ const AuthorBlogsPage = () => {
             key={item.key}
             type="button"
             onClick={() => {
-              setTab(item.key)
+              setSearchParams(prev => {
+                const next = new URLSearchParams(prev)
+                if (item.key === 'for_you') {
+                  next.delete('tab')
+                } else {
+                  next.set('tab', item.key)
+                }
+                return next
+              })
               setPage(1)
             }}
             className={cn(
