@@ -28,8 +28,7 @@ jobs:
       - name: Generate Prisma Client
         run: npm run db:generate
 
-      - name: Lint Backend
-       
+
 
       - name: Test Backend
         run: npm run test:backend
