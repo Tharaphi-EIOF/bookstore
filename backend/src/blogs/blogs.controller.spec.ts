@@ -5,6 +5,13 @@ import { OptionalJwtAuthGuard } from '../auth/optional-jwt.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { BlogsController } from './blogs.controller';
 import { BlogsService } from './blogs.service';
+import { ListBlogsDto } from './dto/list-blogs.dto';
+
+type ListBlogsResult = Awaited<ReturnType<BlogsService['listBlogs']>>;
+type CreateBlogResult = Awaited<ReturnType<BlogsService['createBlog']>>;
+type FollowAuthorResult = Awaited<ReturnType<BlogsService['followAuthor']>>;
+type DeleteCommentResult = Awaited<ReturnType<BlogsService['deleteComment']>>;
+type ListCommentsResult = Awaited<ReturnType<BlogsService['listComments']>>;
 
 describe('BlogsController', () => {
   let controller: BlogsController;
@@ -63,55 +70,63 @@ describe('BlogsController', () => {
 
   it('delegates listBlogs', async () => {
     const req = { user: { sub: 'user-1' } };
-    const dto = { authorId: 'author-1' } as any;
-    service.listBlogs.mockResolvedValue({
+    const dto: ListBlogsDto = { authorId: 'author-1' };
+    const result: ListBlogsResult = {
       items: [],
       total: 0,
       page: 1,
       limit: 10,
-    } as any);
+    };
+    service.listBlogs.mockResolvedValue(result);
     await controller.listBlogs(dto, req);
-    expect(service.listBlogs).toHaveBeenCalledWith(dto, 'user-1');
+    expect(service.listBlogs.mock.calls[0]).toEqual([dto, 'user-1']);
   });
 
   it('delegates createBlog', async () => {
     const req = { user: { sub: 'user-1' } };
     const dto = { title: 'T', content: 'C' };
-    service.createBlog.mockResolvedValue({ id: 'blog-1' } as any);
+    service.createBlog.mockResolvedValue({ id: 'blog-1' } as CreateBlogResult);
     await controller.createBlog(req, dto);
-    expect(service.createBlog).toHaveBeenCalledWith('user-1', dto);
+    expect(service.createBlog.mock.calls[0]).toEqual(['user-1', dto]);
   });
 
   it('delegates followAuthor and unfollowAuthor', async () => {
     const req = { user: { sub: 'user-1' } };
-    service.followAuthor.mockResolvedValue({ id: 'f-1' } as any);
-    service.unfollowAuthor.mockResolvedValue({ id: 'f-1' } as any);
+    service.followAuthor.mockResolvedValue({ id: 'f-1' } as FollowAuthorResult);
+    service.unfollowAuthor.mockResolvedValue({
+      id: 'f-1',
+    } as FollowAuthorResult);
 
     await controller.followAuthor(req, 'author-1');
     await controller.unfollowAuthor(req, 'author-1');
 
-    expect(service.followAuthor).toHaveBeenCalledWith('user-1', 'author-1');
-    expect(service.unfollowAuthor).toHaveBeenCalledWith('user-1', 'author-1');
+    expect(service.followAuthor.mock.calls[0]).toEqual(['user-1', 'author-1']);
+    expect(service.unfollowAuthor.mock.calls[0]).toEqual([
+      'user-1',
+      'author-1',
+    ]);
   });
 
   it('delegates comments endpoints', async () => {
     const req = { user: { sub: 'user-1' } };
     const commentDto = { content: 'Nice post' };
 
-    service.addComment.mockResolvedValue({ id: 'c-1' } as any);
-    service.deleteComment.mockResolvedValue({ success: true } as any);
-    service.listComments.mockResolvedValue([] as any);
+    service.addComment.mockResolvedValue({ id: 'c-1' } as CreateBlogResult);
+    service.deleteComment.mockResolvedValue({
+      success: true,
+    } as DeleteCommentResult);
+    service.listComments.mockResolvedValue([] as ListCommentsResult);
 
     await controller.listComments('blog-1');
     await controller.addComment(req, 'blog-1', commentDto);
     await controller.deleteComment(req, 'c-1');
 
-    expect(service.listComments).toHaveBeenCalledWith('blog-1');
-    expect(service.addComment).toHaveBeenCalledWith(
+    expect(service.listComments.mock.calls[0]).toEqual(['blog-1']);
+    expect(service.addComment.mock.calls[0]).toEqual([
       'user-1',
       'blog-1',
       commentDto,
-    );
-    expect(service.deleteComment).toHaveBeenCalledWith('user-1', 'c-1');
+    ]);
+    expect(service.deleteComment.mock.calls[0]).toEqual(['user-1', 'c-1']);
   });
 });

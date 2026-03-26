@@ -38,6 +38,22 @@ import { ReviewBlogDto } from './dto/review-blog.dto';
 import { UpdateBlogPageSettingsDto } from './dto/update-blog-page-settings.dto';
 import { UpdateBlogDto } from './dto/update-blog.dto';
 
+type BlogRequestUser = {
+  sub: string;
+};
+
+type OptionalBlogRequest = {
+  user?: BlogRequestUser | null;
+};
+
+type AuthenticatedBlogRequest = {
+  user: BlogRequestUser;
+};
+
+type BlogRequestWithHeaders = OptionalBlogRequest & {
+  headers?: Record<string, string | string[] | undefined>;
+};
+
 @ApiTags('blogs')
 @Controller('blogs')
 export class BlogsController {
@@ -50,7 +66,7 @@ export class BlogsController {
     status: 200,
     description: 'Blog posts retrieved successfully',
   })
-  listBlogs(@Query() dto: ListBlogsDto, @Request() req?: any) {
+  listBlogs(@Query() dto: ListBlogsDto, @Request() req?: OptionalBlogRequest) {
     return this.blogsService.listBlogs(dto, req?.user?.sub);
   }
 
@@ -78,7 +94,7 @@ export class BlogsController {
   @Permissions('blogs.moderate')
   @ApiOperation({ summary: 'Update public blog page header settings' })
   updatePageSettings(
-    @Request() req: any,
+    @Request() req: AuthenticatedBlogRequest,
     @Body() dto: UpdateBlogPageSettingsDto,
   ) {
     return this.blogsService.updatePageSettings(req.user.sub, dto);
@@ -87,7 +103,10 @@ export class BlogsController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('users/:userId')
   @ApiOperation({ summary: 'Get public user profile with published posts' })
-  getUserProfile(@Param('userId') userId: string, @Request() req?: any) {
+  getUserProfile(
+    @Param('userId') userId: string,
+    @Request() req?: OptionalBlogRequest,
+  ) {
     return this.blogsService.getUserProfile(userId, req?.user?.sub);
   }
 
@@ -95,7 +114,7 @@ export class BlogsController {
   @ApiBearerAuth('JWT-auth')
   @Get('analytics/me')
   @ApiOperation({ summary: 'Get analytics for the current author' })
-  getMyAnalytics(@Request() req: any) {
+  getMyAnalytics(@Request() req: AuthenticatedBlogRequest) {
     return this.blogsService.getMyAnalytics(req.user.sub);
   }
 
@@ -103,7 +122,10 @@ export class BlogsController {
   @ApiBearerAuth('JWT-auth')
   @Post()
   @ApiOperation({ summary: 'Create blog post draft or publish' })
-  createBlog(@Request() req: any, @Body() dto: CreateBlogDto) {
+  createBlog(
+    @Request() req: AuthenticatedBlogRequest,
+    @Body() dto: CreateBlogDto,
+  ) {
     return this.blogsService.createBlog(req.user.sub, dto);
   }
 
@@ -136,8 +158,8 @@ export class BlogsController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: (req, _file, cb) => {
-          const userId = String((req as any).user?.sub || '').trim();
+        destination: (req: OptionalBlogRequest, _file, cb) => {
+          const userId = String(req.user?.sub ?? '').trim();
           const dir = `./uploads/blogs/${userId}`;
           mkdirSync(dir, { recursive: true });
           cb(null, dir);
@@ -161,7 +183,7 @@ export class BlogsController {
     }),
   )
   uploadBlogImage(
-    @Request() req: any,
+    @Request() req: AuthenticatedBlogRequest,
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) {
@@ -178,7 +200,7 @@ export class BlogsController {
   @Patch(':blogId')
   @ApiOperation({ summary: 'Update own blog post (or admin)' })
   updateBlog(
-    @Request() req: any,
+    @Request() req: AuthenticatedBlogRequest,
     @Param('blogId') blogId: string,
     @Body() dto: UpdateBlogDto,
   ) {
@@ -189,7 +211,10 @@ export class BlogsController {
   @ApiBearerAuth('JWT-auth')
   @Delete('assets')
   @ApiOperation({ summary: 'Delete an unused uploaded blog image' })
-  deleteUploadedBlogImage(@Request() req: any, @Query('url') url: string) {
+  deleteUploadedBlogImage(
+    @Request() req: AuthenticatedBlogRequest,
+    @Query('url') url: string,
+  ) {
     return this.blogsService.deleteUploadedImage(req.user.sub, url);
   }
 
@@ -197,7 +222,10 @@ export class BlogsController {
   @ApiBearerAuth('JWT-auth')
   @Delete(':blogId')
   @ApiOperation({ summary: 'Delete own blog post (or admin)' })
-  deleteBlog(@Request() req: any, @Param('blogId') blogId: string) {
+  deleteBlog(
+    @Request() req: AuthenticatedBlogRequest,
+    @Param('blogId') blogId: string,
+  ) {
     return this.blogsService.deleteBlog(req.user.sub, blogId);
   }
 
@@ -205,7 +233,10 @@ export class BlogsController {
   @ApiBearerAuth('JWT-auth')
   @Post(':blogId/publish')
   @ApiOperation({ summary: 'Publish own draft blog post' })
-  publishPost(@Request() req: any, @Param('blogId') blogId: string) {
+  publishPost(
+    @Request() req: AuthenticatedBlogRequest,
+    @Param('blogId') blogId: string,
+  ) {
     return this.blogsService.publishBlog(req.user.sub, blogId);
   }
 
@@ -224,7 +255,7 @@ export class BlogsController {
   @Permissions('blogs.moderate')
   @ApiOperation({ summary: 'Approve a post after moderation review' })
   approvePost(
-    @Request() req: any,
+    @Request() req: AuthenticatedBlogRequest,
     @Param('blogId') blogId: string,
     @Body() dto: ReviewBlogDto,
   ) {
@@ -237,7 +268,7 @@ export class BlogsController {
   @Permissions('blogs.moderate')
   @ApiOperation({ summary: 'Reject a post after moderation review' })
   rejectPost(
-    @Request() req: any,
+    @Request() req: AuthenticatedBlogRequest,
     @Param('blogId') blogId: string,
     @Body() dto: ReviewBlogDto,
   ) {
@@ -248,7 +279,7 @@ export class BlogsController {
   @ApiBearerAuth('JWT-auth')
   @Get('likes/me')
   @ApiOperation({ summary: 'List ids of blog posts liked by current user' })
-  listMyLikes(@Request() req: any) {
+  listMyLikes(@Request() req: AuthenticatedBlogRequest) {
     return this.blogsService.listLikedPostIds(req.user.sub);
   }
 
@@ -256,7 +287,10 @@ export class BlogsController {
   @ApiBearerAuth('JWT-auth')
   @Post(':blogId/like')
   @ApiOperation({ summary: 'Like a blog post' })
-  likeBlog(@Request() req: any, @Param('blogId') blogId: string) {
+  likeBlog(
+    @Request() req: AuthenticatedBlogRequest,
+    @Param('blogId') blogId: string,
+  ) {
     return this.blogsService.likeBlog(req.user.sub, blogId);
   }
 
@@ -264,7 +298,10 @@ export class BlogsController {
   @ApiBearerAuth('JWT-auth')
   @Delete(':blogId/like')
   @ApiOperation({ summary: 'Unlike a blog post' })
-  unlikeBlog(@Request() req: any, @Param('blogId') blogId: string) {
+  unlikeBlog(
+    @Request() req: AuthenticatedBlogRequest,
+    @Param('blogId') blogId: string,
+  ) {
     return this.blogsService.unlikeBlog(req.user.sub, blogId);
   }
 
@@ -272,7 +309,10 @@ export class BlogsController {
   @ApiBearerAuth('JWT-auth')
   @Post('authors/:authorId/follow')
   @ApiOperation({ summary: 'Follow an author' })
-  followAuthor(@Request() req: any, @Param('authorId') authorId: string) {
+  followAuthor(
+    @Request() req: AuthenticatedBlogRequest,
+    @Param('authorId') authorId: string,
+  ) {
     return this.blogsService.followAuthor(req.user.sub, authorId);
   }
 
@@ -280,7 +320,10 @@ export class BlogsController {
   @ApiBearerAuth('JWT-auth')
   @Delete('authors/:authorId/follow')
   @ApiOperation({ summary: 'Unfollow an author' })
-  unfollowAuthor(@Request() req: any, @Param('authorId') authorId: string) {
+  unfollowAuthor(
+    @Request() req: AuthenticatedBlogRequest,
+    @Param('authorId') authorId: string,
+  ) {
     return this.blogsService.unfollowAuthor(req.user.sub, authorId);
   }
 
@@ -288,7 +331,7 @@ export class BlogsController {
   @ApiBearerAuth('JWT-auth')
   @Get('follows/me')
   @ApiOperation({ summary: 'List authors followed by current user' })
-  listFollowedAuthors(@Request() req: any) {
+  listFollowedAuthors(@Request() req: AuthenticatedBlogRequest) {
     return this.blogsService.listFollowedAuthors(req.user.sub);
   }
 
@@ -301,7 +344,10 @@ export class BlogsController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':blogId')
   @ApiOperation({ summary: 'Get a published blog post and comments' })
-  getBlog(@Param('blogId') blogId: string, @Request() req?: any) {
+  getBlog(
+    @Param('blogId') blogId: string,
+    @Request() req?: BlogRequestWithHeaders,
+  ) {
     const visitorId =
       typeof req?.headers?.['x-visitor-id'] === 'string'
         ? req.headers['x-visitor-id']
@@ -314,7 +360,7 @@ export class BlogsController {
   @Post(':blogId/comments')
   @ApiOperation({ summary: 'Add comment to blog post' })
   addComment(
-    @Request() req: any,
+    @Request() req: AuthenticatedBlogRequest,
     @Param('blogId') blogId: string,
     @Body() dto: CreateBlogCommentDto,
   ) {
@@ -325,7 +371,10 @@ export class BlogsController {
   @ApiBearerAuth('JWT-auth')
   @Delete('comments/:commentId')
   @ApiOperation({ summary: 'Delete comment' })
-  deleteComment(@Request() req: any, @Param('commentId') commentId: string) {
+  deleteComment(
+    @Request() req: AuthenticatedBlogRequest,
+    @Param('commentId') commentId: string,
+  ) {
     return this.blogsService.deleteComment(req.user.sub, commentId);
   }
 }

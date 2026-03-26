@@ -15,6 +15,13 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { Req } from '@nestjs/common';
+
+type AuthenticatedRequest = {
+  user: {
+    sub: string;
+  };
+};
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -74,7 +81,7 @@ export class AuthController {
     status: 200,
     description: 'Current authenticated user',
   })
-  getCurrentUser(@Req() req: any) {
+  getCurrentUser(@Req() req: AuthenticatedRequest) {
     return this.authService.getCurrentUser(req.user.sub);
   }
 
@@ -98,7 +105,7 @@ export class AuthController {
       },
     },
   })
-  getMyPermissions(@Req() req: any) {
+  getMyPermissions(@Req() req: AuthenticatedRequest) {
     return this.authService.getMyPermissions(req.user.sub);
   }
 
@@ -145,7 +152,10 @@ export class AuthController {
       },
     },
   })
-  async updateProfile(@Req() req: any, @Body() dto: UpdateProfileDto) {
+  async updateProfile(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: UpdateProfileDto,
+  ) {
     return this.authService.updateProfile(req.user.sub, dto);
   }
 
@@ -158,7 +168,10 @@ export class AuthController {
     status: 201,
     description: 'Password changed successfully',
   })
-  changePassword(@Req() req: any, @Body() dto: ChangePasswordDto) {
+  changePassword(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: ChangePasswordDto,
+  ) {
     return this.authService.changePassword(req.user.sub, dto);
   }
 }
