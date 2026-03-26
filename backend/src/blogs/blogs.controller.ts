@@ -16,6 +16,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
+import type { Request as ExpressRequest } from 'express';
 import { randomUUID } from 'crypto';
 import { mkdirSync } from 'fs';
 import { extname } from 'path';
@@ -52,6 +53,10 @@ type AuthenticatedBlogRequest = {
 
 type BlogRequestWithHeaders = OptionalBlogRequest & {
   headers?: Record<string, string | string[] | undefined>;
+};
+
+type BlogUploadRequest = ExpressRequest & {
+  user?: Partial<BlogRequestUser> | null;
 };
 
 @ApiTags('blogs')
@@ -158,7 +163,7 @@ export class BlogsController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: (req: OptionalBlogRequest, _file, cb) => {
+        destination: (req: BlogUploadRequest, _file, cb) => {
           const userId = String(req.user?.sub ?? '').trim();
           const dir = `./uploads/blogs/${userId}`;
           mkdirSync(dir, { recursive: true });
