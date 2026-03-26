@@ -5,6 +5,7 @@ import { PrismaService } from '../database/prisma.service';
 import { CartService } from '../cart/cart.service';
 import { StaffService } from '../staff/staff.service';
 import { PricingSettingsService } from '../pricing-settings/pricing-settings.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import * as fc from 'fast-check';
 
 describe('OrdersService', () => {
@@ -61,6 +62,13 @@ describe('OrdersService', () => {
               taxRateFraction: 0,
             }),
             computeTaxAmount: jest.fn().mockReturnValue(0),
+          },
+        },
+        {
+          provide: NotificationsService,
+          useValue: {
+            sendOrderConfirmation: jest.fn(),
+            notifyUser: jest.fn(),
           },
         },
       ],
@@ -232,6 +240,24 @@ describe('OrdersService', () => {
               book: true,
             },
           },
+          returnRequests: {
+            include: {
+              book: {
+                select: {
+                  id: true,
+                  title: true,
+                  author: true,
+                },
+              },
+              reviewedByUser: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -266,6 +292,24 @@ describe('OrdersService', () => {
             include: {
               book: true,
             },
+          },
+          returnRequests: {
+            include: {
+              book: {
+                select: {
+                  id: true,
+                  title: true,
+                  author: true,
+                },
+              },
+              reviewedByUser: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
           },
         },
       });

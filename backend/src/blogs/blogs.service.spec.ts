@@ -67,7 +67,7 @@ describe('BlogsService', () => {
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
       name: 'User One',
-      role: 'USER',
+      role: 'ADMIN',
     });
     prisma.book.count.mockResolvedValue(0);
     prisma.$transaction.mockResolvedValue(undefined);
@@ -141,6 +141,11 @@ describe('BlogsService', () => {
   });
 
   it('updateBlog only allows owner', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'user-1',
+      name: 'User One',
+      role: 'USER',
+    });
     prisma.authorBlog.findUnique.mockResolvedValue({
       id: 'blog-1',
       authorId: 'author-2',

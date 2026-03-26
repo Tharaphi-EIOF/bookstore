@@ -239,7 +239,7 @@ export const AdminOverviewContent = ({ embedded = false }: { embedded?: boolean 
           <div className="mb-4 flex items-end justify-between">
             <h2 className="text-lg font-semibold">Business Health</h2>
           </div>
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             <Card
               label="Revenue"
               value={`$${totalRevenue.toFixed(2)}`}

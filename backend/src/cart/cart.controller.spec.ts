@@ -1,4 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { AuthService } from '../auth/auth.service';
+import { JwtAuthGuard } from '../auth/jwt.guard';
 import { CartController } from './cart.controller';
 import { CartService } from './cart.service';
 
@@ -10,6 +12,12 @@ describe('CartController', () => {
       controllers: [CartController],
       providers: [
         {
+          provide: AuthService,
+          useValue: {
+            authenticateBearerToken: jest.fn(),
+          },
+        },
+        {
           provide: CartService,
           useValue: {
             addItem: jest.fn(),
@@ -20,7 +28,10 @@ describe('CartController', () => {
           },
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .compile();
 
     controller = module.get<CartController>(CartController);
   });

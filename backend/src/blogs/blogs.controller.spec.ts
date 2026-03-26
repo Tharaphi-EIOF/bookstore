@@ -1,5 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt.guard';
+import { PermissionsGuard } from '../auth/permissions.guard';
 import { BlogsController } from './blogs.controller';
 import { BlogsService } from './blogs.service';
 
@@ -11,6 +14,12 @@ describe('BlogsController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [BlogsController],
       providers: [
+        {
+          provide: AuthService,
+          useValue: {
+            authenticateBearerToken: jest.fn(),
+          },
+        },
         {
           provide: BlogsService,
           useValue: {
@@ -37,6 +46,10 @@ describe('BlogsController', () => {
       ],
     })
       .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .overrideGuard(OptionalJwtAuthGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .overrideGuard(PermissionsGuard)
       .useValue({ canActivate: jest.fn(() => true) })
       .compile();
 
