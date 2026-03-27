@@ -147,7 +147,7 @@ export class BlogsService {
 
   async getMyAnalytics(userId: string) {
     await this.ensureUser(userId);
-    const db = this.prisma as any;
+    const db = this.prisma;
 
     const posts = await db.authorBlog.findMany({
       where: { authorId: userId },
@@ -281,7 +281,7 @@ export class BlogsService {
   }
 
   async listBlogs(dto: ListBlogsDto, currentUserId?: string) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const page = dto.page ?? 1;
     const limit = dto.limit ?? 10;
     const skip = (page - 1) * limit;
@@ -294,7 +294,7 @@ export class BlogsService {
         where: { followerId: currentUserId },
         select: { authorId: true },
       });
-      followedAuthorIds = follows.map((f: any) => f.authorId);
+      followedAuthorIds = follows.map((f) => f.authorId);
     }
 
     const where = buildBlogListWhere(dto, tagFilters, followedAuthorIds);
@@ -312,7 +312,7 @@ export class BlogsService {
     ]);
 
     return {
-      items: items.map((item: any) => mapBlog(item, currentUserId)),
+      items: items.map((item) => mapBlog(item, currentUserId)),
       total,
       page,
       limit,
@@ -320,7 +320,7 @@ export class BlogsService {
   }
 
   async getBlog(blogId: string, currentUserId?: string, visitorId?: string) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const existing = await db.authorBlog.findUnique({ where: { id: blogId } });
     if (!existing) {
       throw new NotFoundException('Blog post not found');
@@ -423,7 +423,7 @@ export class BlogsService {
   }
 
   async createBlog(userId: string, dto: CreateBlogDto) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const user = await this.ensureUser(userId);
     this.assertNoInlineImages(dto.content);
     const tags = normalizeTags(dto.tags);
@@ -458,7 +458,7 @@ export class BlogsService {
   }
 
   async updateBlog(userId: string, blogId: string, dto: UpdateBlogDto) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const user = await this.ensureUser(userId);
     this.assertNoInlineImages(dto.content);
 
@@ -483,40 +483,42 @@ export class BlogsService {
         ? undefined
         : this.resolveRequestedStatus(dto.status, canManageAsAdmin(user.role));
 
-    const updated = await db.$transaction(async (tx: any) => {
-      if (nextTags) {
-        await tx.blogPostTag.deleteMany({ where: { postId: blogId } });
-      }
+    const updated = await db.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        if (nextTags) {
+          await tx.blogPostTag.deleteMany({ where: { postId: blogId } });
+        }
 
-      if (nextBookIds) {
-        await tx.blogPostBookReference.deleteMany({
-          where: { postId: blogId },
+        if (nextBookIds) {
+          await tx.blogPostBookReference.deleteMany({
+            where: { postId: blogId },
+          });
+        }
+
+        return tx.authorBlog.update({
+          where: { id: blogId },
+          data: {
+            ...buildUpdateBlogData(
+              { ...dto, status: nextStatus },
+              nextTags,
+              nextBookIds,
+            ),
+            ...(nextStatus === BLOG_STATUS.DRAFT ||
+            nextStatus === BLOG_STATUS.PENDING_REVIEW
+              ? {
+                  moderationReason: null,
+                  reviewedByUserId: null,
+                  reviewedAt: null,
+                }
+              : {}),
+            ...(dto.readingTime === undefined && dto.content !== undefined
+              ? { readingTime: estimateReadingTime(dto.content) }
+              : {}),
+          },
+          include: blogInclude(userId),
         });
-      }
-
-      return tx.authorBlog.update({
-        where: { id: blogId },
-        data: {
-          ...buildUpdateBlogData(
-            { ...dto, status: nextStatus },
-            nextTags,
-            nextBookIds,
-          ),
-          ...(nextStatus === BLOG_STATUS.DRAFT ||
-          nextStatus === BLOG_STATUS.PENDING_REVIEW
-            ? {
-                moderationReason: null,
-                reviewedByUserId: null,
-                reviewedAt: null,
-              }
-            : {}),
-          ...(dto.readingTime === undefined && dto.content !== undefined
-            ? { readingTime: estimateReadingTime(dto.content) }
-            : {}),
-        },
-        include: blogInclude(userId),
-      });
-    });
+      },
+    );
 
     if (
       statusBefore !== BLOG_STATUS.PUBLISHED &&
@@ -542,11 +544,11 @@ export class BlogsService {
   }
 
   async listModerationQueue(dto: ListBlogModerationDto) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const page = dto.page ?? 1;
     const limit = dto.limit ?? 20;
     const skip = (page - 1) * limit;
-    const where: any = {
+    const where: Prisma.AuthorBlogWhereInput = {
       status: dto.status ?? BLOG_STATUS.PENDING_REVIEW,
     };
 
@@ -570,7 +572,7 @@ export class BlogsService {
     ]);
 
     return {
-      items: items.map((item: any) => mapBlog(item)),
+      items: items.map((item) => mapBlog(item)),
       total,
       page,
       limit,
@@ -583,7 +585,7 @@ export class BlogsService {
     action: 'APPROVE' | 'REJECT',
     dto: ReviewBlogDto,
   ) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     await this.ensureUser(reviewerUserId);
 
     const existing = await db.authorBlog.findUnique({
@@ -683,7 +685,7 @@ export class BlogsService {
   }
 
   async likeBlog(userId: string, blogId: string) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const user = await this.ensureUser(userId);
     const blog = await db.authorBlog.findUnique({ where: { id: blogId } });
 
@@ -721,7 +723,7 @@ export class BlogsService {
   }
 
   async unlikeBlog(userId: string, blogId: string) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     await this.ensureUser(userId);
 
     const existing = await db.blogLike.findUnique({
@@ -744,7 +746,7 @@ export class BlogsService {
   }
 
   async listLikedPostIds(userId: string) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     await this.ensureUser(userId);
 
     const likes = await db.blogLike.findMany({
@@ -752,11 +754,11 @@ export class BlogsService {
       select: { postId: true },
     });
 
-    return { postIds: likes.map((like: any) => like.postId) };
+    return { postIds: likes.map((like) => like.postId) };
   }
 
   async followAuthor(userId: string, authorId: string) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const user = await this.ensureUser(userId);
     await this.ensureUser(authorId);
 
@@ -796,7 +798,7 @@ export class BlogsService {
   }
 
   async unfollowAuthor(userId: string, authorId: string) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     await this.ensureUser(userId);
 
     const follow = await db.authorFollow.findUnique({
@@ -811,7 +813,7 @@ export class BlogsService {
   }
 
   async listFollowedAuthors(userId: string) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     await this.ensureUser(userId);
 
     return db.authorFollow.findMany({
@@ -826,7 +828,7 @@ export class BlogsService {
   }
 
   async getUserProfile(userId: string, currentUserId?: string) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: BLOG_PROFILE_SELECT,
@@ -906,7 +908,7 @@ export class BlogsService {
   }
 
   async listComments(blogId: string) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const blog = await db.authorBlog.findUnique({ where: { id: blogId } });
     if (!blog || blog.status !== BLOG_STATUS.PUBLISHED) {
       throw new NotFoundException('Blog post not found');
@@ -920,7 +922,7 @@ export class BlogsService {
   }
 
   async addComment(userId: string, blogId: string, dto: CreateBlogCommentDto) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const commenter = await this.ensureUser(userId);
 
     const blog = await db.authorBlog.findUnique({ where: { id: blogId } });
@@ -928,23 +930,25 @@ export class BlogsService {
       throw new NotFoundException('Blog post not found');
     }
 
-    const comment = await db.$transaction(async (tx: any) => {
-      const created = await tx.blogComment.create({
-        data: {
-          blogId,
-          userId,
-          content: dto.content,
-        },
-        include: commentInclude(),
-      });
+    const comment = await db.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const created = await tx.blogComment.create({
+          data: {
+            blogId,
+            userId,
+            content: dto.content,
+          },
+          include: commentInclude(),
+        });
 
-      await tx.authorBlog.update({
-        where: { id: blogId },
-        data: { commentsCount: { increment: 1 } },
-      });
+        await tx.authorBlog.update({
+          where: { id: blogId },
+          data: { commentsCount: { increment: 1 } },
+        });
 
-      return created;
-    });
+        return created;
+      },
+    );
 
     if (blog.authorId !== userId) {
       await this.notificationsService.createUserNotification({
@@ -960,7 +964,7 @@ export class BlogsService {
   }
 
   async deleteComment(userId: string, commentId: string) {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const user = await this.ensureUser(userId);
 
     const comment = await db.blogComment.findUnique({
@@ -991,7 +995,7 @@ export class BlogsService {
   }
 
   async getTrendingTags() {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const grouped = await db.blogPostTag.groupBy({
       by: ['tagId'],
       _count: { tagId: true },
@@ -1002,13 +1006,13 @@ export class BlogsService {
     if (!grouped.length) return [];
 
     const tags = await db.blogTag.findMany({
-      where: { id: { in: grouped.map((g: any) => g.tagId) } },
+      where: { id: { in: grouped.map((g) => g.tagId) } },
     });
-    const byId = new Map<string, any>(tags.map((tag: any) => [tag.id, tag]));
+    const byId = new Map(tags.map((tag) => [tag.id, tag]));
 
     return grouped
-      .map((group: any) => {
-        const tag: any = byId.get(group.tagId);
+      .map((group) => {
+        const tag = byId.get(group.tagId);
         if (!tag) return null;
         return {
           id: tag.id,
@@ -1016,11 +1020,14 @@ export class BlogsService {
           usageCount: group._count.tagId,
         };
       })
-      .filter((item: any) => !!item);
+      .filter(
+        (item): item is { id: string; name: string; usageCount: number } =>
+          item !== null,
+      );
   }
 
   async getStaffPicks() {
-    const db = this.prisma as any;
+    const db = this.prisma;
     const picks = await db.authorBlog.findMany({
       where: { status: BLOG_STATUS.PUBLISHED },
       include: blogInclude(),
@@ -1033,7 +1040,7 @@ export class BlogsService {
       take: 4,
     });
 
-    return picks.map((item: any) => mapBlog(item));
+    return picks.map((item) => mapBlog(item));
   }
 
   private async notifyFollowersOnPublish(

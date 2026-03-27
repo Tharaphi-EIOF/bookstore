@@ -7,7 +7,6 @@ import {
   LoyaltyRewardType,
   PromotionDiscountType,
   ReadingStatus,
-  type Prisma,
 } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
@@ -249,8 +248,6 @@ export class LoyaltyService {
         },
       });
 
-      let promoId: string | null = null;
-
       if (
         reward.rewardType === LoyaltyRewardType.FREE_EBOOK &&
         reward.rewardBookId
@@ -306,7 +303,6 @@ export class LoyaltyService {
             isActive: true,
           },
         });
-        promoId = promo.id;
         await tx.loyaltyRedemption.update({
           where: { id: redemption.id },
           data: {

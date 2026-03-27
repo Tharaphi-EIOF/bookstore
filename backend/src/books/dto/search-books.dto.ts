@@ -4,7 +4,6 @@ import {
   IsNumber,
   Min,
   Max,
-  IsBoolean,
   IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';

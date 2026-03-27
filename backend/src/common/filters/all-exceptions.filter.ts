@@ -8,6 +8,11 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
+type ExceptionResponseBody = {
+  message?: string | string[];
+  error?: string;
+};
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -26,9 +31,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const exceptionResponse = exception.getResponse();
 
       if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
-        const responseObj = exceptionResponse as any;
-        message = responseObj.message || exception.message;
-        error = responseObj.error || exception.name;
+        const responseObj = exceptionResponse as ExceptionResponseBody;
+        message = responseObj.message ?? exception.message;
+        error = responseObj.error ?? exception.name;
       } else {
         message = exceptionResponse;
         error = exception.name;
@@ -53,7 +58,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     };
 
     const logMessage = `${method} ${path} - ${status} - ${JSON.stringify(message)}`;
-    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+    if (status >= 500) {
       this.logger.error(
         logMessage,
         exception instanceof Error ? exception.stack : undefined,

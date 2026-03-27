@@ -7,7 +7,7 @@ import { PrismaService } from '../database/prisma.service';
 import { CreateBookDto } from './dto/create-book.dto';
 import { UpdateBookDto } from './dto/update-book.dto';
 import { SearchBooksDto } from './dto/search-books.dto';
-import { Book } from '@prisma/client';
+import { Book, Prisma } from '@prisma/client';
 import { existsSync, readFileSync } from 'fs';
 import { dirname, extname, posix, resolve } from 'path';
 import { inflateRawSync } from 'zlib';
@@ -344,7 +344,7 @@ export class BooksService {
     return Math.max(1, Math.round(totalCharacters / 1800));
   }
 
-  async estimateEbookPages(dto: {
+  estimateEbookPages(dto: {
     ebookFilePath?: string;
     ebookFormat?: 'EPUB' | 'PDF';
   }) {
@@ -439,7 +439,7 @@ export class BooksService {
       sortOrder = 'desc',
     } = searchDto || {};
 
-    const where: any = {};
+    const where: Prisma.BookWhereInput = {};
     if (status === 'active') {
       where.deletedAt = null;
     } else if (status === 'trashed') {
@@ -470,10 +470,16 @@ export class BooksService {
     if (minPrice !== undefined || maxPrice !== undefined) {
       where.price = {};
       if (minPrice !== undefined) {
-        where.price.gte = minPrice;
+        where.price = {
+          ...(where.price ?? {}),
+          gte: minPrice,
+        };
       }
       if (maxPrice !== undefined) {
-        where.price.lte = maxPrice;
+        where.price = {
+          ...(where.price ?? {}),
+          lte: maxPrice,
+        };
       }
     }
 
@@ -556,7 +562,7 @@ export class BooksService {
       genres: existingBook.genres ?? [],
     });
 
-    const updateData: any = { ...dto };
+    const updateData: Prisma.BookUpdateInput = { ...dto };
     if (taxonomy.categories) {
       updateData.categories = taxonomy.categories;
     }
@@ -643,8 +649,13 @@ export class BooksService {
       });
 
       return this.enhanceBookWithStockStatus(book);
-    } catch (error: any) {
-      if (error?.code === 'P2003') {
+    } catch (error: unknown) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'P2003'
+      ) {
         throw new BadRequestException(
           'Cannot delete this book because it is referenced by existing records.',
         );

@@ -1,10 +1,35 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InquiryStatus, InquiryType } from '@prisma/client';
+import { PrismaService } from '../database/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { InquiriesService } from './inquiries.service';
+
+type PrismaMock = {
+  staffProfile: { findFirst: jest.Mock; findUnique: jest.Mock };
+  department: { findFirst: jest.Mock; findUnique: jest.Mock };
+  inquiry: {
+    create: jest.Mock;
+    findMany: jest.Mock;
+    count: jest.Mock;
+    findFirst: jest.Mock;
+    findUnique: jest.Mock;
+    update: jest.Mock;
+  };
+  inquiryMessage: { create: jest.Mock };
+  inquiryAudit: { create: jest.Mock; findMany: jest.Mock };
+  inquiryInternalNote: { create: jest.Mock };
+  $transaction: jest.Mock;
+};
+
+type NotificationsMock = {
+  createInquiryNotificationForDepartment: jest.Mock;
+  createUserNotification: jest.Mock;
+};
 
 describe('InquiriesService', () => {
   const makeService = () => {
-    const prisma = {
+    const prisma: PrismaMock = {
       staffProfile: { findFirst: jest.fn(), findUnique: jest.fn() },
       department: { findFirst: jest.fn(), findUnique: jest.fn() },
       inquiry: {
@@ -19,17 +44,20 @@ describe('InquiriesService', () => {
       inquiryAudit: { create: jest.fn(), findMany: jest.fn() },
       inquiryInternalNote: { create: jest.fn() },
       $transaction: jest.fn(),
-    } as any;
+    };
 
-    const notifications = {
+    const notifications: NotificationsMock = {
       createInquiryNotificationForDepartment: jest.fn(),
       createUserNotification: jest.fn(),
-    } as any;
+    };
 
     return {
       prisma,
       notifications,
-      service: new InquiriesService(prisma, notifications),
+      service: new InquiriesService(
+        prisma as unknown as PrismaService,
+        notifications as unknown as NotificationsService,
+      ),
     };
   };
 
@@ -119,7 +147,15 @@ describe('InquiriesService', () => {
       name: 'Customer Support',
     });
     prisma.$transaction.mockImplementation(
-      async (fn: (tx: any) => Promise<any>) =>
+      (
+        fn: (tx: {
+          inquiry: { create: jest.Mock };
+          inquiryMessage: { create: jest.Mock };
+          inquiryAudit: { create: jest.Mock };
+          staffProfile: { findMany: jest.Mock };
+          notification: { createMany: jest.Mock };
+        }) => Promise<{ id: string }>,
+      ) =>
         fn({
           inquiry: { create: jest.fn().mockResolvedValue({ id: 'inq-new' }) },
           inquiryMessage: {

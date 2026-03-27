@@ -430,9 +430,14 @@ export class StaffPayrollAdminController {
   @ApiOperation({ summary: 'Update payroll status or info' })
   updatePayroll(
     @Param('id') id: string,
-    @Body() data: { status?: PayrollStatus; bonus?: number; deductions?: number; note?: string },
+    @Body()
+    data: {
+      status?: PayrollStatus;
+      bonus?: number;
+      deductions?: number;
+      note?: string;
+    },
   ) {
     return this.payrollService.updatePayroll(id, data);
   }
 }
-

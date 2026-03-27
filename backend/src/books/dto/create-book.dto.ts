@@ -125,7 +125,7 @@ export class CreateBookDto {
     enum: ['EPUB', 'PDF'],
     example: 'EPUB',
   })
-  @ValidateIf((obj) => obj.isDigital === true)
+  @ValidateIf((obj: CreateBookDto) => obj.isDigital === true)
   @IsIn(['EPUB', 'PDF'])
   ebookFormat?: 'EPUB' | 'PDF';
 
@@ -133,7 +133,7 @@ export class CreateBookDto {
     description: 'Relative file path under uploads/ebooks (e.g., my-book.epub)',
     example: 'my-book.epub',
   })
-  @ValidateIf((obj) => obj.isDigital === true)
+  @ValidateIf((obj: CreateBookDto) => obj.isDigital === true)
   @IsString()
   ebookFilePath?: string;
 

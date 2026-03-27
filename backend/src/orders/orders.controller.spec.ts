@@ -3,6 +3,7 @@ import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
+import { CreateOrderDto } from './dto/create-order.dto';
 
 describe('OrdersController', () => {
   let controller: OrdersController;
@@ -53,7 +54,7 @@ describe('OrdersController', () => {
         orderItems: [],
       };
       const req = { user: { sub: userId } };
-      const dto: any = {
+      const dto: CreateOrderDto = {
         fullName: 'A User',
         email: 'a@b.com',
         phone: '12345',
@@ -66,12 +67,14 @@ describe('OrdersController', () => {
         paymentReceiptUrl: '/uploads/r.png',
       };
 
-      ordersService.create.mockResolvedValue(mockOrder as any);
+      ordersService.create.mockResolvedValue(
+        mockOrder as Awaited<ReturnType<OrdersService['create']>>,
+      );
 
       const result = await controller.create(req, dto);
 
       expect(result).toEqual(mockOrder);
-      expect(ordersService.create).toHaveBeenCalledWith(userId, dto);
+      expect(ordersService.create.mock.calls[0]).toEqual([userId, dto]);
     });
   });
 
@@ -89,12 +92,14 @@ describe('OrdersController', () => {
       ];
       const req = { user: { sub: userId } };
 
-      ordersService.findAll.mockResolvedValue(mockOrders as any);
+      ordersService.findAll.mockResolvedValue(
+        mockOrders as Awaited<ReturnType<OrdersService['findAll']>>,
+      );
 
       const result = await controller.findAll(req);
 
       expect(result).toEqual(mockOrders);
-      expect(ordersService.findAll).toHaveBeenCalledWith(userId);
+      expect(ordersService.findAll.mock.calls[0]).toEqual([userId]);
     });
   });
 
@@ -111,12 +116,14 @@ describe('OrdersController', () => {
       };
       const req = { user: { sub: userId } };
 
-      ordersService.findOne.mockResolvedValue(mockOrder as any);
+      ordersService.findOne.mockResolvedValue(
+        mockOrder as Awaited<ReturnType<OrdersService['findOne']>>,
+      );
 
       const result = await controller.findOne(req, orderId);
 
       expect(result).toEqual(mockOrder);
-      expect(ordersService.findOne).toHaveBeenCalledWith(userId, orderId);
+      expect(ordersService.findOne.mock.calls[0]).toEqual([userId, orderId]);
     });
   });
 });

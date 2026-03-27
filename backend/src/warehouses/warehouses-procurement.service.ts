@@ -577,7 +577,10 @@ export class WarehousesProcurementService {
         soldQty: 0,
         revenue: 0,
         titlesSold: new Set<string>(),
-        topBooks: new Map(),
+        topBooks: new Map<
+          string,
+          { bookId: string; title: string; author: string; quantity: number }
+        >(),
       };
 
       current.soldQty += item.quantity;

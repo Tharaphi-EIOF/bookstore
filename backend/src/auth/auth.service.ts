@@ -51,8 +51,6 @@ const baseUserSelect = {
   createdAt: true,
 } satisfies Prisma.UserSelect;
 
-type BasicUserRecord = Prisma.UserGetPayload<{ select: typeof baseUserSelect }>;
-
 type SessionRequestUser = {
   sub: string;
   clerkUserId: string | null;

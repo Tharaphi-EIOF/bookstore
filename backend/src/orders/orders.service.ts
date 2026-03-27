@@ -493,13 +493,13 @@ export class OrdersService {
       const isEbook = cartItem.format === 'EBOOK';
       if (isEbook && (!book.isDigital || !book.ebookFilePath)) {
         throw new BadRequestException(
-          `Book \"${book.title}\" is not available as an eBook.`,
+          `Book "${book.title}" is not available as an eBook.`,
         );
       }
 
       if (isEbook && cartItem.quantity !== 1) {
         throw new BadRequestException(
-          `eBook \"${book.title}\" must have quantity 1.`,
+          `eBook "${book.title}" must have quantity 1.`,
         );
       }
 

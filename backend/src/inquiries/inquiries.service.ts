@@ -29,15 +29,17 @@ import { UpdateInquiryTemplateDto } from './dto/update-inquiry-template.dto';
 
 type ScopeType = 'GLOBAL' | 'DEPARTMENT' | 'ASSIGNED_ONLY' | 'SELF_ONLY';
 
+type RoleLike = Role | (string & {});
+
 type AuthUser = {
   sub: string;
-  role?: string;
+  role?: RoleLike;
   permissions?: string[];
 };
 
 type ActorContext = {
   userId: string;
-  role?: Role | string;
+  role?: RoleLike;
   permissions: Set<string>;
   staffProfileId?: string;
   departmentId?: string;
@@ -344,9 +346,8 @@ export class InquiriesService {
     ) {
       return false;
     }
-    const table = String(
-      (error.meta as { table?: unknown } | undefined)?.table ?? '',
-    );
+    const tableValue = (error.meta as { table?: unknown } | undefined)?.table;
+    const table = typeof tableValue === 'string' ? tableValue : '';
     return table.includes('InquiryQuickReplyTemplate');
   }
 

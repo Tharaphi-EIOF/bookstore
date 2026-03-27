@@ -33,8 +33,15 @@ export const deleteBlogUploadFile = async (url: string) => {
   if (!filePath) return;
   try {
     await unlink(filePath);
-  } catch (error: any) {
-    if (error?.code !== 'ENOENT') {
+  } catch (error: unknown) {
+    if (
+      !(
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'ENOENT'
+      )
+    ) {
       throw error;
     }
   }

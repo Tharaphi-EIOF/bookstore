@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReadingStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt.guard';

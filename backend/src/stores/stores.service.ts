@@ -548,7 +548,10 @@ export class StoresService {
         completedOrders: 0,
         grossSales: 0,
         unitsSold: 0,
-        topBooks: new Map(),
+        topBooks: new Map<
+          string,
+          { bookId: string; title: string; author: string; quantity: number }
+        >(),
       };
 
       current.totalOrders += 1;

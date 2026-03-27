@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { BooksService } from './books.service';
 import { PrismaService } from '../database/prisma.service';
@@ -67,7 +68,10 @@ describe('BooksService', () => {
             description: fc.option(fc.string({ maxLength: 500 }), {
               nil: undefined,
             }),
-            categories: fc.array(fc.constant('Fiction'), { minLength: 1, maxLength: 1 }),
+            categories: fc.array(fc.constant('Fiction'), {
+              minLength: 1,
+              maxLength: 1,
+            }),
           }),
           async (bookData: CreateBookDto) => {
             // Arrange: Mock successful book creation
@@ -233,10 +237,12 @@ describe('BooksService', () => {
           expect(prismaService.book.findUnique).toHaveBeenCalledWith({
             where: { id: bookId },
           });
-          expect(prismaService.book.update).toHaveBeenCalledWith({
-            where: { id: bookId },
-            data: { deletedAt: expect.any(Date) },
-          });
+          const [propertyDeleteCall] = (prismaService.book.update as jest.Mock)
+            .mock.calls as [
+            { where: { id: string }; data: { deletedAt: Date } },
+          ];
+          expect(propertyDeleteCall.where).toEqual({ id: bookId });
+          expect(propertyDeleteCall.data.deletedAt).toBeInstanceOf(Date);
           expect(result).toMatchObject({
             ...trashedBook,
             inStock: existingBook.stock > 0,
@@ -524,7 +530,7 @@ describe('BooksService', () => {
               nil: undefined,
             }),
           }),
-          async (bookData) => {
+          (bookData) => {
             // This test validates the concept that negative stock should be rejected
             // In a real scenario, this would be handled by DTO validation
             // For this test, we simulate the service rejecting negative stock
@@ -560,7 +566,10 @@ describe('BooksService', () => {
             description: fc.option(fc.string({ maxLength: 500 }), {
               nil: undefined,
             }),
-            categories: fc.array(fc.constant('Fiction'), { minLength: 1, maxLength: 1 }),
+            categories: fc.array(fc.constant('Fiction'), {
+              minLength: 1,
+              maxLength: 1,
+            }),
           }),
           async (bookData) => {
             // Arrange: Mock book with zero stock
@@ -772,10 +781,10 @@ describe('BooksService', () => {
           inStock: true,
           stockStatus: 'IN_STOCK',
         });
-        expect(prismaService.book.update).toHaveBeenCalledWith({
-          where: { id: bookId },
-          data: { deletedAt: expect.any(Date) },
-        });
+        const [unitDeleteCall] = (prismaService.book.update as jest.Mock).mock
+          .calls as [{ where: { id: string }; data: { deletedAt: Date } }];
+        expect(unitDeleteCall.where).toEqual({ id: bookId });
+        expect(unitDeleteCall.data.deletedAt).toBeInstanceOf(Date);
       });
 
       it('should throw NotFoundException when deleting non-existent book', async () => {
@@ -826,17 +835,14 @@ describe('BooksService', () => {
         expect(result.books[0]).toHaveProperty('stockStatus');
         expect(result.books[0].inStock).toBe(true);
         expect(result.books[0].stockStatus).toBe('LOW_STOCK');
-        expect(result).toEqual({
-          books: expect.arrayContaining([
-            expect.objectContaining({
-              ...mockBooks[0],
-              inStock: true,
-              stockStatus: 'LOW_STOCK',
-            }),
-          ]),
-          total: 1,
-          page: 1,
-          limit: 10,
+        expect(result.total).toBe(1);
+        expect(result.page).toBe(1);
+        expect(result.limit).toBe(10);
+        expect(result.books).toHaveLength(1);
+        expect(result.books[0]).toMatchObject({
+          ...mockBooks[0],
+          inStock: true,
+          stockStatus: 'LOW_STOCK',
         });
         expect(prismaService.book.findMany).toHaveBeenCalledWith({
           where: {

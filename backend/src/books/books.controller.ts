@@ -28,6 +28,12 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 
+type AuthenticatedRequest = {
+  user: {
+    sub: string;
+  };
+};
+
 @ApiTags('books')
 @Controller('books')
 export class BooksController {
@@ -173,7 +179,10 @@ export class BooksController {
     status: 401,
     description: 'Unauthorized - JWT token required',
   })
-  getRecommendedBooks(@Request() req: any, @Query('limit') limit?: string) {
+  getRecommendedBooks(
+    @Request() req: AuthenticatedRequest,
+    @Query('limit') limit?: string,
+  ) {
     const parsedLimit = limit ? parseInt(limit, 10) : undefined;
     return this.booksService.getRecommendedBooks(req.user.sub, parsedLimit);
   }

@@ -19,6 +19,12 @@ import { ReviewsService } from './reviews.service';
 import { CreateReviewDto, UpdateReviewDto } from './dto/review.dto';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 
+type AuthenticatedRequest = {
+  user: {
+    sub: string;
+  };
+};
+
 @ApiTags('reviews')
 @Controller('books/:bookId/reviews')
 export class ReviewsController {
@@ -32,7 +38,7 @@ export class ReviewsController {
   @ApiResponse({ status: 400, description: 'Already reviewed this book' })
   @ApiResponse({ status: 404, description: 'Book not found' })
   create(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('bookId') bookId: string,
     @Body() createReviewDto: CreateReviewDto,
   ) {
@@ -60,7 +66,7 @@ export class ReviewsManagementController {
   @ApiResponse({ status: 403, description: 'Can only update own reviews' })
   @ApiResponse({ status: 404, description: 'Review not found' })
   update(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() updateReviewDto: UpdateReviewDto,
   ) {
@@ -72,7 +78,7 @@ export class ReviewsManagementController {
   @ApiResponse({ status: 200, description: 'Review deleted successfully' })
   @ApiResponse({ status: 403, description: 'Can only delete own reviews' })
   @ApiResponse({ status: 404, description: 'Review not found' })
-  async delete(@Request() req: any, @Param('id') id: string) {
+  async delete(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     await this.reviewsService.delete(id, req.user.sub);
     return { message: 'Review deleted successfully' };
   }

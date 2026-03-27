@@ -8,9 +8,40 @@ import { PrismaService } from '../database/prisma.service';
 import { BlogsService } from './blogs.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
+type PrismaMock = {
+  user: { findUnique: jest.Mock };
+  book: { count: jest.Mock };
+  authorBlog: {
+    findMany: jest.Mock;
+    findUnique: jest.Mock;
+    create: jest.Mock;
+    update: jest.Mock;
+    delete: jest.Mock;
+  };
+  authorFollow: {
+    findMany: jest.Mock;
+    findUnique: jest.Mock;
+    create: jest.Mock;
+    delete: jest.Mock;
+  };
+  blogLike: {
+    findMany: jest.Mock;
+    findUnique: jest.Mock;
+    create: jest.Mock;
+    delete: jest.Mock;
+  };
+  blogComment: {
+    findMany: jest.Mock;
+    findUnique: jest.Mock;
+    create: jest.Mock;
+    delete: jest.Mock;
+  };
+  $transaction: jest.Mock;
+};
+
 describe('BlogsService', () => {
   let service: BlogsService;
-  let prisma: any;
+  let prisma: PrismaMock;
   let notificationsService: { createUserNotification: jest.Mock };
 
   beforeEach(async () => {
@@ -62,7 +93,7 @@ describe('BlogsService', () => {
     }).compile();
 
     service = module.get<BlogsService>(BlogsService);
-    prisma = module.get(PrismaService);
+    prisma = module.get<PrismaMock>(PrismaService);
 
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
@@ -93,11 +124,13 @@ describe('BlogsService', () => {
       { followerId: 'u-3' },
     ]);
 
-    const result = await service.createBlog('user-1', {
-      title: 'Post A',
-      content: 'Body',
-      status: 'PUBLISHED',
-    });
+    await expect(
+      service.createBlog('user-1', {
+        title: 'Post A',
+        content: 'Body',
+        status: 'PUBLISHED',
+      }),
+    ).resolves.toMatchObject({ id: 'blog-1' });
 
     expect(notificationsService.createUserNotification).toHaveBeenCalledTimes(
       2,
@@ -114,7 +147,6 @@ describe('BlogsService', () => {
         link: '/blogs/blog-1',
       }),
     );
-    expect(result.id).toBe('blog-1');
   });
 
   it('followAuthor prevents following self', async () => {
@@ -127,7 +159,11 @@ describe('BlogsService', () => {
     prisma.authorFollow.findUnique.mockResolvedValue(null);
     prisma.authorFollow.create.mockResolvedValue({ id: 'follow-1' });
 
-    const result = await service.followAuthor('user-1', 'author-1');
+    await expect(
+      service.followAuthor('user-1', 'author-1'),
+    ).resolves.toMatchObject({
+      id: 'follow-1',
+    });
 
     expect(prisma.authorFollow.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -137,7 +173,6 @@ describe('BlogsService', () => {
         },
       }),
     );
-    expect(result.id).toBe('follow-1');
   });
 
   it('updateBlog only allows owner', async () => {

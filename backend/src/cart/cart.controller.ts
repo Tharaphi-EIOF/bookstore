@@ -23,6 +23,12 @@ import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { BookPurchaseFormat } from '@prisma/client';
 
+type AuthenticatedRequest = {
+  user: {
+    sub: string;
+  };
+};
+
 @ApiTags('cart')
 @Controller('cart')
 @UseGuards(JwtAuthGuard)
@@ -57,7 +63,7 @@ export class CartController {
     description: 'Unauthorized - JWT token required',
   })
   @ApiResponse({ status: 404, description: 'Book not found' })
-  addItem(@Request() req: any, @Body() dto: AddToCartDto) {
+  addItem(@Request() req: AuthenticatedRequest, @Body() dto: AddToCartDto) {
     return this.cartService.addItem(req.user.sub, dto);
   }
 
@@ -89,7 +95,7 @@ export class CartController {
   })
   @ApiResponse({ status: 404, description: 'Cart item not found' })
   updateItem(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('bookId') bookId: string,
     @Query('format') format: BookPurchaseFormat = BookPurchaseFormat.PHYSICAL,
     @Body() dto: UpdateCartItemDto,
@@ -109,7 +115,7 @@ export class CartController {
   })
   @ApiResponse({ status: 404, description: 'Cart item not found' })
   removeItem(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('bookId') bookId: string,
     @Query('format') format: BookPurchaseFormat = BookPurchaseFormat.PHYSICAL,
   ) {
@@ -156,7 +162,7 @@ export class CartController {
     status: 401,
     description: 'Unauthorized - JWT token required',
   })
-  getCart(@Request() req: any) {
+  getCart(@Request() req: AuthenticatedRequest) {
     return this.cartService.getCart(req.user.sub);
   }
 }

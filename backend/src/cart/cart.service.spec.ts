@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { CartService } from './cart.service';
 import { PrismaService } from '../database/prisma.service';
@@ -42,7 +43,7 @@ describe('CartService', () => {
 
     jest.clearAllMocks();
     (prismaService.user.findUnique as jest.Mock).mockImplementation(
-      async ({ where }: { where: { id: string } }) => ({
+      ({ where }: { where: { id: string } }) => ({
         id: where.id,
       }),
     );
@@ -421,7 +422,7 @@ describe('CartService', () => {
             ];
 
             (prismaService.cartItem.findMany as jest.Mock).mockImplementation(
-              ({ where }) => {
+              ({ where }: { where: { userId: string } }) => {
                 if (where.userId === testData.user1Id) {
                   return Promise.resolve(user1CartItems);
                 }

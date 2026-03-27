@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { PayrollStatus } from '@prisma/client';
 
@@ -51,30 +55,36 @@ export class StaffPayrollService {
         staffProfile: {
           include: {
             user: {
-              select: { name: true, email: true }
-            }
-          }
-        }
-      }
+              select: { name: true, email: true },
+            },
+          },
+        },
+      },
     });
   }
 
-  async listPayrolls(filters: { staffId?: string; status?: PayrollStatus; departmentId?: string }) {
+  async listPayrolls(filters: {
+    staffId?: string;
+    status?: PayrollStatus;
+    departmentId?: string;
+  }) {
     return this.prisma.staffPayroll.findMany({
       where: {
         ...(filters.staffId ? { staffProfileId: filters.staffId } : {}),
         ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.departmentId ? { staffProfile: { departmentId: filters.departmentId } } : {}),
+        ...(filters.departmentId
+          ? { staffProfile: { departmentId: filters.departmentId } }
+          : {}),
       },
       include: {
         staffProfile: {
           include: {
             user: {
-              select: { name: true, email: true }
+              select: { name: true, email: true },
             },
-            department: true
-          }
-        }
+            department: true,
+          },
+        },
       },
       orderBy: { periodStart: 'desc' },
     });
@@ -87,31 +97,41 @@ export class StaffPayrollService {
         staffProfile: {
           include: {
             user: {
-              select: { name: true, email: true }
+              select: { name: true, email: true },
             },
-            department: true
-          }
-        }
+            department: true,
+          },
+        },
       },
     });
     if (!row) throw new NotFoundException('Payroll not found');
     return row;
   }
 
-  async updatePayroll(id: string, data: { status?: PayrollStatus; bonus?: number; deductions?: number; note?: string }) {
+  async updatePayroll(
+    id: string,
+    data: {
+      status?: PayrollStatus;
+      bonus?: number;
+      deductions?: number;
+      note?: string;
+    },
+  ) {
     const existing = await this.getPayroll(id);
-    
+
     const bonus = data.bonus ?? Number(existing.bonus);
     const deductions = data.deductions ?? Number(existing.deductions);
     const amount = Number(existing.amount);
-    
+
     const netAmount = amount + bonus - deductions;
 
     return this.prisma.staffPayroll.update({
       where: { id },
       data: {
         ...(data.status ? { status: data.status } : {}),
-        ...(data.status === PayrollStatus.PAID ? { paymentDate: new Date() } : {}),
+        ...(data.status === PayrollStatus.PAID
+          ? { paymentDate: new Date() }
+          : {}),
         bonus,
         deductions,
         netAmount,

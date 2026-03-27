@@ -1,11 +1,27 @@
 import { mapBlog } from './blogs.mapper';
 
+type ProfileUser = {
+  email: string | null;
+  showEmail: boolean;
+  showFollowers: boolean;
+  showFollowing: boolean;
+  showFavorites: boolean;
+  showLikedPosts: boolean;
+  supportEnabled: boolean;
+} & Record<string, unknown>;
+
+type BlogLikeRecord = {
+  post: Record<string, unknown>;
+};
+
+type ProfileBlogRecord = Record<string, unknown>;
+
 export function toProfileResponse(
-  user: any,
+  user: ProfileUser,
   isOwner: boolean,
-  posts: any[],
-  favorites: any[],
-  likedPosts: any[],
+  posts: ProfileBlogRecord[],
+  favorites: Array<Record<string, unknown>>,
+  likedPosts: BlogLikeRecord[],
   followers: number,
   following: number,
   canViewFollowers: boolean,
@@ -32,10 +48,8 @@ export function toProfileResponse(
       posts: posts.length,
     },
     isFollowing: !!isFollowing,
-    posts: posts.map((item: any) => mapBlog(item, currentUserId)),
+    posts: posts.map((item) => mapBlog(item, currentUserId)),
     favorites,
-    likedPosts: likedPosts.map((item: any) =>
-      mapBlog(item.post, currentUserId),
-    ),
+    likedPosts: likedPosts.map((item) => mapBlog(item.post, currentUserId)),
   };
 }

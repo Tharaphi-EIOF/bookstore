@@ -29,6 +29,12 @@ import { UpdateSavedAddressDto } from './dto/update-saved-address.dto';
 import { CreateReturnRequestDto } from './dto/create-return-request.dto';
 import { ReviewReturnRequestDto } from './dto/review-return-request.dto';
 
+type AuthenticatedRequest = {
+  user: {
+    sub: string;
+  };
+};
+
 @ApiTags('orders')
 @Controller('orders')
 @UseGuards(JwtAuthGuard)
@@ -43,14 +49,17 @@ export class OrdersController {
   @ApiOperation({ summary: 'Create order from cart (checkout)' })
   @ApiResponse({ status: 201, description: 'Order created successfully' })
   @ApiResponse({ status: 400, description: 'Cart empty or insufficient stock' })
-  create(@Request() req: any, @Body() dto: CreateOrderDto) {
+  create(@Request() req: AuthenticatedRequest, @Body() dto: CreateOrderDto) {
     return this.ordersService.create(req.user.sub, dto);
   }
 
   @Post('promotions/validate')
   @ApiOperation({ summary: 'Validate promo code against current cart' })
   @ApiResponse({ status: 200, description: 'Promo validation completed' })
-  validatePromo(@Request() req: any, @Body() dto: ValidatePromoDto) {
+  validatePromo(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: ValidatePromoDto,
+  ) {
     return this.ordersService.validatePromo(req.user.sub, dto.code);
   }
 
@@ -69,26 +78,29 @@ export class OrdersController {
   @Get()
   @ApiOperation({ summary: 'Get user order history' })
   @ApiResponse({ status: 200, description: 'Orders retrieved successfully' })
-  findAll(@Request() req: any) {
+  findAll(@Request() req: AuthenticatedRequest) {
     return this.ordersService.findAll(req.user.sub);
   }
 
   @Get('addresses')
   @ApiOperation({ summary: 'List saved checkout addresses for current user' })
-  listSavedAddresses(@Request() req: any) {
+  listSavedAddresses(@Request() req: AuthenticatedRequest) {
     return this.ordersService.listSavedAddresses(req.user.sub);
   }
 
   @Post('addresses')
   @ApiOperation({ summary: 'Create a saved checkout address' })
-  createSavedAddress(@Request() req: any, @Body() dto: CreateSavedAddressDto) {
+  createSavedAddress(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: CreateSavedAddressDto,
+  ) {
     return this.ordersService.createSavedAddress(req.user.sub, dto);
   }
 
   @Patch('addresses/:id')
   @ApiOperation({ summary: 'Update a saved checkout address' })
   updateSavedAddress(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() dto: UpdateSavedAddressDto,
   ) {
@@ -97,7 +109,10 @@ export class OrdersController {
 
   @Delete('addresses/:id')
   @ApiOperation({ summary: 'Delete a saved checkout address' })
-  deleteSavedAddress(@Request() req: any, @Param('id') id: string) {
+  deleteSavedAddress(
+    @Request() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
     return this.ordersService.deleteSavedAddress(req.user.sub, id);
   }
 
@@ -172,14 +187,14 @@ export class OrdersController {
   @ApiOperation({ summary: 'Get specific order by ID' })
   @ApiResponse({ status: 200, description: 'Order found' })
   @ApiResponse({ status: 404, description: 'Order not found' })
-  findOne(@Request() req: any, @Param('id') id: string) {
+  findOne(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.ordersService.findOne(req.user.sub, id);
   }
 
   @Post(':id/returns')
   @ApiOperation({ summary: 'Create a return or refund request for an order' })
   createReturnRequest(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() dto: CreateReturnRequestDto,
   ) {
@@ -229,7 +244,7 @@ export class OrdersController {
     description: 'Only pending orders can be cancelled',
   })
   @ApiResponse({ status: 404, description: 'Order not found' })
-  cancelOrder(@Request() req: any, @Param('id') id: string) {
+  cancelOrder(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.ordersService.cancelOrder(req.user.sub, id);
   }
 }

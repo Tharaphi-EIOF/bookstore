@@ -7,14 +7,14 @@ import {
 import { PrismaService } from '../database/prisma.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
-import { BookPurchaseFormat, CartItem } from '@prisma/client';
+import { BookPurchaseFormat, CartItem, Prisma } from '@prisma/client';
 
 @Injectable()
 export class CartService {
   constructor(private readonly prisma: PrismaService) {}
 
   private resolveBookUnitPrice(
-    book: { price: any; ebookPrice: any | null },
+    book: Pick<Prisma.BookUncheckedCreateInput, 'price' | 'ebookPrice'>,
     format: BookPurchaseFormat,
   ) {
     if (format === BookPurchaseFormat.EBOOK) {

@@ -1,5 +1,21 @@
+import { Prisma } from '@prisma/client';
 import { ListBlogsDto } from './dto/list-blogs.dto';
 import { BLOG_STATUS } from './blogs.constants';
+
+type BlogListWhere = Prisma.AuthorBlogWhereInput;
+
+function normalizeWhereClauses(
+  clauses:
+    | Prisma.AuthorBlogWhereInput
+    | Prisma.AuthorBlogWhereInput[]
+    | undefined,
+): Prisma.AuthorBlogWhereInput[] {
+  if (!clauses) {
+    return [];
+  }
+
+  return Array.isArray(clauses) ? clauses : [clauses];
+}
 
 export function parseTagFilters(dto: ListBlogsDto): string[] {
   return Array.from(
@@ -16,8 +32,8 @@ export function buildBlogListWhere(
   dto: ListBlogsDto,
   tagFilters: string[],
   followedAuthorIds: string[],
-): any {
-  const where: any = {
+): BlogListWhere {
+  const where: BlogListWhere = {
     ...(dto.authorId ? { authorId: dto.authorId } : {}),
     ...(dto.status
       ? { status: dto.status }
@@ -28,7 +44,7 @@ export function buildBlogListWhere(
 
   if (tagFilters.length > 0) {
     where.AND = [
-      ...(where.AND ?? []),
+      ...normalizeWhereClauses(where.AND),
       {
         OR: tagFilters.map((name) => ({
           tags: {
@@ -63,7 +79,7 @@ export function buildBlogListWhere(
 
   if (tab === 'poems') {
     where.AND = [
-      ...(where.AND ?? []),
+      ...normalizeWhereClauses(where.AND),
       {
         content: {
           contains: '"mode":"POEM"',
@@ -75,7 +91,9 @@ export function buildBlogListWhere(
   return where;
 }
 
-export function getBlogListOrderBy(tab?: ListBlogsDto['tab']): any[] {
+export function getBlogListOrderBy(
+  tab?: ListBlogsDto['tab'],
+): Array<Record<string, 'desc'>> {
   if (tab === 'trending') {
     return [
       { likesCount: 'desc' },

@@ -1,12 +1,35 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 import { Test, TestingModule } from '@nestjs/testing';
-import { ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
+import { Request, Response } from 'express';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import * as fc from 'fast-check';
 
+type ResponseMock = Pick<Response, 'status' | 'json'> & {
+  status: jest.Mock;
+  json: jest.Mock;
+};
+
+type RequestMock = Pick<Request, 'url' | 'method'>;
+
+type HttpArgumentsHostMock = {
+  getResponse: () => ResponseMock;
+  getRequest: () => RequestMock;
+};
+
+type FilterWithLogger = AllExceptionsFilter & {
+  logger: Pick<Logger, 'error' | 'warn'>;
+};
+
 describe('AllExceptionsFilter', () => {
   let filter: AllExceptionsFilter;
-  let mockResponse: any;
-  let mockRequest: any;
+  let mockResponse: ResponseMock;
+  let mockRequest: RequestMock;
   let mockArgumentsHost: ArgumentsHost;
   let loggerErrorSpy: jest.SpyInstance;
   let loggerWarnSpy: jest.SpyInstance;
@@ -18,10 +41,10 @@ describe('AllExceptionsFilter', () => {
 
     filter = module.get<AllExceptionsFilter>(AllExceptionsFilter);
     loggerErrorSpy = jest
-      .spyOn((filter as any).logger, 'error')
+      .spyOn((filter as FilterWithLogger).logger, 'error')
       .mockImplementation();
     loggerWarnSpy = jest
-      .spyOn((filter as any).logger, 'warn')
+      .spyOn((filter as FilterWithLogger).logger, 'warn')
       .mockImplementation();
 
     mockResponse = {
@@ -34,12 +57,17 @@ describe('AllExceptionsFilter', () => {
       method: 'GET',
     };
 
+    const httpHost: HttpArgumentsHostMock = {
+      getResponse: () => mockResponse,
+      getRequest: () => mockRequest,
+    };
+
     mockArgumentsHost = {
       switchToHttp: jest.fn().mockReturnValue({
-        getResponse: () => mockResponse,
-        getRequest: () => mockRequest,
+        getResponse: httpHost.getResponse,
+        getRequest: httpHost.getRequest,
       }),
-    } as any;
+    } as unknown as ArgumentsHost;
 
     jest.clearAllMocks();
   });
@@ -162,7 +190,7 @@ describe('AllExceptionsFilter', () => {
               fc.array(fc.string({ minLength: 1 }), { minLength: 1 }),
             ),
           }),
-          async (testData) => {
+          (testData) => {
             mockRequest.url = testData.path;
             mockRequest.method = testData.method;
 
@@ -200,7 +228,7 @@ describe('AllExceptionsFilter', () => {
             method: fc.constantFrom('GET', 'POST', 'PUT', 'DELETE', 'PATCH'),
             resourceType: fc.constantFrom('Book', 'User', 'Order', 'Cart'),
           }),
-          async (testData) => {
+          (testData) => {
             mockRequest.url = testData.path;
             mockRequest.method = testData.method;
 

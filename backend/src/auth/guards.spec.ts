@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import * as fc from 'fast-check';
-import { JwtAuthGuard } from './jwt.guard';
 import { RolesGuard } from './roles.guard';
 import { Role } from '@prisma/client';
 
@@ -34,15 +33,15 @@ describe('Guards', () => {
      * **Property 4: Valid JWT authorizes requests**
      * **Validates: Requirements 1.4**
      */
-    it('Property 4: Valid JWT authorizes requests', async () => {
-      await fc.assert(
-        fc.asyncProperty(
+    it('Property 4: Valid JWT authorizes requests', () => {
+      fc.assert(
+        fc.property(
           fc.record({
             userId: fc.uuid(),
             email: fc.emailAddress(),
             role: fc.constantFrom('USER', 'ADMIN'),
           }),
-          async (userData) => {
+          (userData) => {
             // Arrange: Mock execution context with valid user
             const mockContext = {
               switchToHttp: () => ({
@@ -66,9 +65,11 @@ describe('Guards', () => {
 
             // Assert: Valid JWT should authorize request
             expect(result).toBe(true);
-            expect(reflector.getAllAndOverride).toHaveBeenCalledWith('roles', [
-              mockContext.getHandler(),
-              mockContext.getClass(),
+            expect(
+              (reflector.getAllAndOverride as jest.Mock).mock.calls[0],
+            ).toEqual([
+              'roles',
+              [mockContext.getHandler(), mockContext.getClass()],
             ]);
           },
         ),
