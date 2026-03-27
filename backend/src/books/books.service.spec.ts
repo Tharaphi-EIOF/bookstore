@@ -237,10 +237,12 @@ describe('BooksService', () => {
           expect(prismaService.book.findUnique).toHaveBeenCalledWith({
             where: { id: bookId },
           });
-          const [propertyDeleteCall] = (prismaService.book.update as jest.Mock)
-            .mock.calls as [
-            { where: { id: string }; data: { deletedAt: Date } },
-          ];
+          const propertyDeleteCalls = (prismaService.book.update as jest.Mock)
+            .mock.calls as Array<
+            [{ where: { id: string }; data: { deletedAt: Date } }]
+          >;
+          const [propertyDeleteCall] =
+            propertyDeleteCalls[propertyDeleteCalls.length - 1];
           expect(propertyDeleteCall.where).toEqual({ id: bookId });
           expect(propertyDeleteCall.data.deletedAt).toBeInstanceOf(Date);
           expect(result).toMatchObject({
@@ -781,8 +783,11 @@ describe('BooksService', () => {
           inStock: true,
           stockStatus: 'IN_STOCK',
         });
-        const [unitDeleteCall] = (prismaService.book.update as jest.Mock).mock
-          .calls as [{ where: { id: string }; data: { deletedAt: Date } }];
+        const unitDeleteCalls = (prismaService.book.update as jest.Mock).mock
+          .calls as Array<
+          [{ where: { id: string }; data: { deletedAt: Date } }]
+        >;
+        const [unitDeleteCall] = unitDeleteCalls[unitDeleteCalls.length - 1];
         expect(unitDeleteCall.where).toEqual({ id: bookId });
         expect(unitDeleteCall.data.deletedAt).toBeInstanceOf(Date);
       });
