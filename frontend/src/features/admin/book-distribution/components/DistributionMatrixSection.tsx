@@ -1,6 +1,7 @@
 import type {
   DistributionBook,
   LocationCell,
+  OwnershipFilter,
   ViewMode,
 } from '@/features/admin/book-distribution/lib/bookDistributionDisplay'
 
@@ -9,6 +10,8 @@ type DistributionMatrixSectionProps = {
   onSearchChange: (value: string) => void
   selectedLocationKey: string
   onSelectedLocationKeyChange: (value: string) => void
+  ownershipFilter: OwnershipFilter
+  onOwnershipFilterChange: (value: OwnershipFilter) => void
   sortBy: 'title' | 'author' | 'isbn' | 'stock'
   onSortByChange: (value: 'title' | 'author' | 'isbn' | 'stock') => void
   sortDir: 'asc' | 'desc'
@@ -41,6 +44,8 @@ const DistributionMatrixSection = ({
   onSearchChange,
   selectedLocationKey,
   onSelectedLocationKeyChange,
+  ownershipFilter,
+  onOwnershipFilterChange,
   sortBy,
   onSortByChange,
   sortDir,
@@ -117,7 +122,17 @@ const DistributionMatrixSection = ({
       </select>
     </div>
 
-    <div className="mt-2 grid gap-2 sm:grid-cols-4">
+    <div className="mt-2 grid gap-2 sm:grid-cols-5">
+      <select
+        value={ownershipFilter}
+        onChange={(event) => onOwnershipFilterChange(event.target.value as OwnershipFilter)}
+        className="rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+      >
+        <option value="all">Ownership: All</option>
+        <option value="owned">Ownership: Store Owned</option>
+        <option value="consignment">Ownership: Consignment</option>
+        <option value="mixed">Ownership: Mixed</option>
+      </select>
       <select
         value={sortBy}
         onChange={(event) => onSortByChange(event.target.value as 'title' | 'author' | 'isbn' | 'stock')}
@@ -176,6 +191,24 @@ const DistributionMatrixSection = ({
                   <p className="font-medium">{book.title}</p>
                   <p className="text-xs text-slate-500">{book.author}</p>
                   <p className="text-xs text-slate-400">{book.isbn}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${
+                        book.ownershipLabel === 'owned'
+                          ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                          : book.ownershipLabel === 'consignment'
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200'
+                            : book.ownershipLabel === 'mixed'
+                              ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200'
+                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                      }`}
+                    >
+                      {book.ownershipLabel ?? 'owned'}
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      Owned {book.ownedQuantity ?? 0} • Consignment {book.consignmentQuantity ?? 0}
+                    </span>
+                  </div>
                 </td>
                 <td className="px-3 py-2 font-semibold">{networkTotal}</td>
                 {visibleLocations.map((location) => {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { AlertTriangle, CheckSquare, ChevronDown, DollarSign, Package, Plus, TrendingUp, Users } from 'lucide-react'
+import { AlertTriangle, CheckSquare, ChevronDown, DollarSign, Package, Plus, Users } from 'lucide-react'
 import BookFormModal from '@/components/admin/BookFormModal'
 import { useBooks } from '@/services/books'
 import { useAdminOrders, type Order } from '@/services/orders'
@@ -60,7 +60,6 @@ export const AdminOverviewContent = ({ embedded = false }: { embedded?: boolean 
   const totalOrders = allOrders.length
   const totalUsers = allUsers.length
   const totalRevenue = allOrders.reduce((sum, order) => sum + Number(order.totalPrice), 0)
-  const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
 
   const outOfStockBooks = books.filter((book) => book.stock === 0)
   const lowStockBooks = books.filter((book) => book.stock > 0 && book.stock <= 10)
@@ -253,22 +252,10 @@ export const AdminOverviewContent = ({ embedded = false }: { embedded?: boolean 
               href="/admin/orders"
             />
             <Card
-              label="Avg Order Value"
-              value={`$${avgOrderValue.toFixed(2)}`}
-              icon={<TrendingUp className="h-7 w-7" />}
-              href="/admin/orders"
-            />
-            <Card
               label="Users"
               value={totalUsers}
               icon={<Users className="h-7 w-7" />}
               href="/admin/users"
-            />
-            <RestockStatusCard
-              total={restockCandidates.length}
-              outOfStock={outOfStockBooks.length}
-              lowStock={lowStockBooks.length}
-              href="/admin/books"
             />
           </div>
         </section>
@@ -535,42 +522,6 @@ const Card = ({ label, value, icon, valueClassName, href }: CardProps) => {
           <p className={`mt-4 truncate text-[2.4rem] font-black leading-none tracking-tight text-gray-900 dark:text-slate-100 ${valueClassName || ''}`}>{value}</p>
         </div>
         <div className="shrink-0 rounded-2xl bg-slate-100 p-3 text-slate-400 dark:bg-slate-900 dark:text-slate-500">{icon}</div>
-      </div>
-    </div>
-  )
-
-  if (!href) return content
-  return <Link to={href}>{content}</Link>
-}
-
-const RestockStatusCard = ({
-  total,
-  outOfStock,
-  lowStock,
-  href,
-}: {
-  total: number
-  outOfStock: number
-  lowStock: number
-  href?: string
-}) => {
-  const statusLabel = total === 0 ? 'All stocked' : `${outOfStock} out, ${lowStock} low`
-
-  const content = (
-    <div className={`${dashboardCardClassName} border-rose-200/70 dark:border-rose-900/60`.trim()}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-sm font-medium uppercase tracking-[0.18em] text-rose-500 dark:text-rose-300">
-            Restocking
-          </p>
-          <p className="mt-4 text-[2.4rem] font-black leading-none tracking-tight text-slate-900 dark:text-slate-100">
-            {total}
-          </p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{statusLabel}</p>
-        </div>
-        <div className="shrink-0 rounded-2xl bg-rose-50 p-3 text-rose-400 dark:bg-rose-950/40 dark:text-rose-300">
-          <AlertTriangle className="h-7 w-7" />
-        </div>
       </div>
     </div>
   )

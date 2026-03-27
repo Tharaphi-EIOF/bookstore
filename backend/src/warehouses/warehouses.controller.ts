@@ -71,6 +71,16 @@ export class WarehousesController {
     return this.warehousesService.getBookStockPresence();
   }
 
+  @Get('admin/book-ownership-summary')
+  @Permissions('warehouse.view')
+  @ApiOperation({
+    summary:
+      'Get per-book owned vs consignment availability summary for admin inventory decisions',
+  })
+  getBookOwnershipSummary() {
+    return this.warehousesService.getBookOwnershipSummary();
+  }
+
   @Get('admin/inventory-lots')
   @Permissions('warehouse.view')
   @ApiOperation({

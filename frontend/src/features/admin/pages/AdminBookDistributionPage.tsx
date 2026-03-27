@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Plus } from 'lucide-react'
+import BookFormModal from '@/components/admin/BookFormModal'
+import Button from '@/components/ui/Button'
 import DistributionMatrixSection from '@/features/admin/book-distribution/components/DistributionMatrixSection'
+import CreatePartnerDealPanel from '@/features/admin/book-distribution/components/CreatePartnerDealPanel'
 import PartnerDealsSection from '@/features/admin/book-distribution/components/PartnerDealsSection'
 import PartnerReceiptsSection from '@/features/admin/book-distribution/components/PartnerReceiptsSection'
 import PartnerSettlementsSection from '@/features/admin/book-distribution/components/PartnerSettlementsSection'
@@ -13,8 +17,11 @@ import {
   type DistributionBook,
   type DistributionSection,
   type LocationCell,
+  type OwnershipFilter,
   type ViewMode,
 } from '@/features/admin/book-distribution/lib/bookDistributionDisplay'
+import type { CreateBookData } from '@/lib/schemas'
+import { useCreateBook } from '@/services/books'
 import { useWarehouses } from '@/features/admin/services/warehouses'
 import { useStores } from '@/features/admin/services/stores'
 import { api, getErrorMessage } from '@/lib/api'
@@ -34,6 +41,7 @@ const AdminBookDistributionPage = () => {
   const [activeSection, setActiveSection] = useState<DistributionSection>('distribution')
   const [search, setSearch] = useState('')
   const [selectedLocationKey, setSelectedLocationKey] = useState('')
+  const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>('all')
   const [sortBy, setSortBy] = useState<'title' | 'author' | 'isbn' | 'stock'>('title')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(1)
@@ -53,9 +61,12 @@ const AdminBookDistributionPage = () => {
   const [receiptResultByDeal, setReceiptResultByDeal] = useState<
     Record<string, { type: 'success' | 'error'; message: string } | undefined>
   >({})
+  const [isCreateDealPanelOpen, setIsCreateDealPanelOpen] = useState(false)
+  const [isAddBookPanelOpen, setIsAddBookPanelOpen] = useState(false)
 
   const { data: warehouses = [] } = useWarehouses()
   const { data: stores = [] } = useStores()
+  const createBookMutation = useCreateBook()
   const {
     data: books = [],
     error: booksError,
@@ -96,6 +107,21 @@ const AdminBookDistributionPage = () => {
       }
 
       return allBooks
+    },
+  })
+  const { data: ownershipSummary } = useQuery({
+    queryKey: ['book-ownership-summary'],
+    queryFn: async (): Promise<{
+      items: Array<{
+        bookId: string
+        ownedQuantity: number
+        consignmentQuantity: number
+        activeDealCount: number
+        ownershipLabel: 'owned' | 'consignment' | 'mixed' | 'unassigned'
+      }>
+    }> => {
+      const response = await api.get('/warehouses/admin/book-ownership-summary')
+      return response.data
     },
   })
 
@@ -182,13 +208,43 @@ const AdminBookDistributionPage = () => {
 
   const filteredBooks = useMemo(() => {
     const keyword = search.trim().toLowerCase()
-    if (!keyword) return books
-    return books.filter((book) =>
-      book.title.toLowerCase().includes(keyword)
-      || book.author.toLowerCase().includes(keyword)
-      || book.isbn.toLowerCase().includes(keyword),
+    const ownershipByBookId = new Map(
+      (ownershipSummary?.items ?? []).map((item) => [item.bookId, item]),
     )
-  }, [books, search])
+
+    return books
+      .map((book) => {
+        const ownership = ownershipByBookId.get(book.id)
+        return {
+          ...book,
+          ownedQuantity: ownership?.ownedQuantity ?? 0,
+          consignmentQuantity: ownership?.consignmentQuantity ?? 0,
+          activeDealCount: ownership?.activeDealCount ?? 0,
+          ownershipLabel:
+            ownership?.ownershipLabel === 'consignment'
+            || ownership?.ownershipLabel === 'mixed'
+              ? ownership.ownershipLabel
+              : 'owned',
+        } satisfies DistributionBook
+      })
+      .filter((book) => {
+        const matchesKeyword =
+          !keyword
+          || book.title.toLowerCase().includes(keyword)
+          || book.author.toLowerCase().includes(keyword)
+          || book.isbn.toLowerCase().includes(keyword)
+
+        const matchesOwnership =
+          ownershipFilter === 'all' || book.ownershipLabel === ownershipFilter
+
+        return matchesKeyword && matchesOwnership
+      })
+  }, [books, ownershipFilter, ownershipSummary?.items, search])
+
+  const eligibleDealBooks = useMemo(
+    () => filteredBooks.filter((book) => (book.ownedQuantity ?? 0) === 0),
+    [filteredBooks],
+  )
 
   const sortedBooks = useMemo(() => {
     const direction = sortDir === 'asc' ? 1 : -1
@@ -235,7 +291,7 @@ const AdminBookDistributionPage = () => {
 
   useEffect(() => {
     setPage(1)
-  }, [search, sortBy, sortDir, pageSize, selectedLocationKey])
+  }, [search, sortBy, sortDir, pageSize, selectedLocationKey, ownershipFilter])
 
   useEffect(() => {
     if (page > totalPages) {
@@ -263,6 +319,12 @@ const AdminBookDistributionPage = () => {
       bookId: '',
       termsNote: '',
     })
+    setIsCreateDealPanelOpen(false)
+  }
+
+  const onCreateBook = async (data: CreateBookData) => {
+    await createBookMutation.mutateAsync(data)
+    setIsAddBookPanelOpen(false)
   }
 
   const onCreateSettlement = async (dealId: string) => {
@@ -405,7 +467,30 @@ const AdminBookDistributionPage = () => {
 
   return (
     <div className="space-y-6 p-8 dark:text-slate-100">
-      <AdminPageIntro title="Book Distribution" />
+      <AdminPageIntro
+        title="Book Distribution"
+        actions={(
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCreateDealPanelOpen(true)}
+              className="h-12 rounded-[20px] px-5 text-sm font-semibold"
+            >
+              <Plus className="h-4 w-4" />
+              Create Deal
+            </Button>
+            <Button
+              type="button"
+              onClick={() => setIsAddBookPanelOpen(true)}
+              className="h-12 rounded-[20px] px-5 text-sm font-semibold"
+            >
+              <Plus className="h-4 w-4" />
+              Add Book
+            </Button>
+          </>
+        )}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="inline-flex rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
@@ -440,6 +525,8 @@ const AdminBookDistributionPage = () => {
           onSearchChange={setSearch}
           selectedLocationKey={selectedLocationKey}
           onSelectedLocationKeyChange={setSelectedLocationKey}
+          ownershipFilter={ownershipFilter}
+          onOwnershipFilterChange={setOwnershipFilter}
           sortBy={sortBy}
           onSortByChange={setSortBy}
           sortDir={sortDir}
@@ -474,13 +561,8 @@ const AdminBookDistributionPage = () => {
           onDealFilterChange={setDealFilter}
           dealSearch={dealSearch}
           onDealSearchChange={setDealSearch}
-          dealForm={dealForm}
-          onDealFormChange={setDealForm}
-          books={books}
           deals={partnerDealsQuery.data?.items || []}
           isLoading={partnerDealsQuery.isLoading}
-          isCreatingDeal={createDealMutation.isPending}
-          onCreateDeal={() => void onCreateDeal()}
           onUpdateDealStatus={(dealId, status) => {
             updateDealMutation.mutate({
               id: dealId,
@@ -524,6 +606,24 @@ const AdminBookDistributionPage = () => {
           }}
         />
       )}
+
+      <CreatePartnerDealPanel
+        open={isCreateDealPanelOpen}
+        onClose={() => setIsCreateDealPanelOpen(false)}
+        dealForm={dealForm}
+        onDealFormChange={setDealForm}
+        books={books}
+        eligibleBooks={eligibleDealBooks}
+        isCreatingDeal={createDealMutation.isPending}
+        onCreateDeal={() => void onCreateDeal()}
+      />
+
+      <BookFormModal
+        isOpen={isAddBookPanelOpen}
+        onClose={() => setIsAddBookPanelOpen(false)}
+        onSubmit={onCreateBook}
+        isLoading={createBookMutation.isPending}
+      />
     </div>
   )
 }

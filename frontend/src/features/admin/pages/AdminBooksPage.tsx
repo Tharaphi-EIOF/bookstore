@@ -91,9 +91,11 @@ const AdminBooksPage = ({
   const showBinShortcut = !lockView && initialView === 'active'
 
   const effectiveView = lockView ? initialView : viewMode
+  const trimmedSearchTerm = searchTerm.trim()
   const { data: booksData, isLoading } = useBooks({
     limit: 100,
     status: effectiveView === 'trash' ? 'trashed' : effectiveView === 'all' ? 'all' : 'active',
+    q: trimmedSearchTerm || undefined,
   })
   const { data: binCountData } = useBooks(
     { page: 1, limit: 1, status: 'trashed' },
@@ -142,9 +144,10 @@ const AdminBooksPage = ({
   // 🔍 Filter logic
   const filteredBooks = visibleBooks.filter(book => {
     const matchesSearch =
-      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.isbn.includes(searchTerm)
+      !trimmedSearchTerm ||
+      book.title.toLowerCase().includes(trimmedSearchTerm.toLowerCase()) ||
+      book.author.toLowerCase().includes(trimmedSearchTerm.toLowerCase()) ||
+      book.isbn.toLowerCase().includes(trimmedSearchTerm.toLowerCase())
 
     let matchesStock = true
     if (stockFilter === 'IN') matchesStock = book.stock > 10

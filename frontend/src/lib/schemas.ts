@@ -97,6 +97,7 @@ export const createBookSchema = z.object({
 export const searchBooksSchema = z.object({
   page: z.number().min(1).optional(),
   limit: z.number().min(1).max(50).optional(),
+  q: z.string().optional(),
   title: z.string().optional(),
   author: z.string().optional(),
   category: z.string().optional(),

@@ -58,6 +58,88 @@ export class WarehousesStockService {
     };
   }
 
+  async getBookOwnershipSummary() {
+    const [ownedLots, consignmentLots, activeDeals] = await Promise.all([
+      this.prisma.inventoryLot.groupBy({
+        by: ['bookId'],
+        where: {
+          ownershipType: InventoryOwnershipType.OWNED,
+          availableQuantity: { gt: 0 },
+        },
+        _sum: { availableQuantity: true },
+      }),
+      this.prisma.inventoryLot.groupBy({
+        by: ['bookId'],
+        where: {
+          ownershipType: InventoryOwnershipType.CONSIGNMENT,
+          availableQuantity: { gt: 0 },
+        },
+        _sum: { availableQuantity: true },
+      }),
+      this.prisma.partnerConsignmentDeal.groupBy({
+        by: ['bookId'],
+        where: {
+          bookId: { not: null },
+          status: {
+            in: ['DRAFT', 'ACTIVE', 'PAUSED'],
+          },
+        },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const byBook = new Map<
+      string,
+      {
+        bookId: string;
+        ownedQuantity: number;
+        consignmentQuantity: number;
+        activeDealCount: number;
+        ownershipLabel: 'owned' | 'consignment' | 'mixed' | 'unassigned';
+      }
+    >();
+
+    const ensure = (bookId: string) => {
+      const existing = byBook.get(bookId);
+      if (existing) return existing;
+      const created = {
+        bookId,
+        ownedQuantity: 0,
+        consignmentQuantity: 0,
+        activeDealCount: 0,
+        ownershipLabel: 'unassigned' as const,
+      };
+      byBook.set(bookId, created);
+      return created;
+    };
+
+    for (const row of ownedLots) {
+      ensure(row.bookId).ownedQuantity = row._sum.availableQuantity ?? 0;
+    }
+    for (const row of consignmentLots) {
+      ensure(row.bookId).consignmentQuantity = row._sum.availableQuantity ?? 0;
+    }
+    for (const row of activeDeals) {
+      if (!row.bookId) continue;
+      ensure(row.bookId).activeDealCount = row._count._all;
+    }
+
+    for (const item of byBook.values()) {
+      item.ownershipLabel =
+        item.ownedQuantity > 0 && item.consignmentQuantity > 0
+          ? 'mixed'
+          : item.ownedQuantity > 0
+            ? 'owned'
+            : item.consignmentQuantity > 0
+              ? 'consignment'
+              : 'unassigned';
+    }
+
+    return {
+      items: Array.from(byBook.values()),
+    };
+  }
+
   async createWarehouse(dto: CreateWarehouseDto) {
     return this.prisma.warehouse.create({
       data: {

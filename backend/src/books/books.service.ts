@@ -423,6 +423,7 @@ export class BooksService {
     message?: string;
   }> {
     const {
+      q,
       title,
       author,
       isbn,
@@ -444,6 +445,16 @@ export class BooksService {
       where.deletedAt = null;
     } else if (status === 'trashed') {
       where.deletedAt = { not: null };
+    }
+
+    const keyword = q?.trim();
+
+    if (keyword) {
+      where.OR = [
+        { title: { contains: keyword, mode: 'insensitive' } },
+        { author: { contains: keyword, mode: 'insensitive' } },
+        { isbn: { contains: keyword, mode: 'insensitive' } },
+      ];
     }
 
     if (title) {

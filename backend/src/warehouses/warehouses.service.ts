@@ -35,6 +35,10 @@ export class WarehousesService {
     return this.stockService.getBookStockPresence();
   }
 
+  getBookOwnershipSummary() {
+    return this.stockService.getBookOwnershipSummary();
+  }
+
   createWarehouse(dto: CreateWarehouseDto) {
     return this.stockService.createWarehouse(dto);
   }

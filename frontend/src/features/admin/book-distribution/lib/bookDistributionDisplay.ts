@@ -3,6 +3,7 @@ import type { PartnerDeal, PartnerDealStatus } from '@/features/admin/services/p
 export type ViewMode = 'table' | 'heatmap'
 export type DistributionSection = 'distribution' | 'deals' | 'receipts' | 'settlements'
 export type LocationType = 'warehouse' | 'store'
+export type OwnershipFilter = 'all' | 'owned' | 'consignment' | 'mixed'
 
 export type LocationCell = {
   id: string
@@ -17,6 +18,10 @@ export type DistributionBook = {
   title: string
   author: string
   isbn: string
+  ownedQuantity?: number
+  consignmentQuantity?: number
+  activeDealCount?: number
+  ownershipLabel?: 'owned' | 'consignment' | 'mixed'
 }
 
 export type DealFormState = {

@@ -31,6 +31,34 @@ export class PartnerDealsService {
     );
   }
 
+  private async assertBookEligibleForConsignment(bookId: string) {
+    const [book, purchaseOrderRefCount, ownedLotCount] = await Promise.all([
+      this.prisma.book.findUnique({
+        where: { id: bookId },
+        select: { id: true, title: true, author: true },
+      }),
+      this.prisma.purchaseOrderItem.count({
+        where: { bookId },
+      }),
+      this.prisma.inventoryLot.count({
+        where: {
+          bookId,
+          ownershipType: InventoryOwnershipType.OWNED,
+        },
+      }),
+    ]);
+
+    if (!book) {
+      throw new NotFoundException('Linked book not found');
+    }
+
+    if (purchaseOrderRefCount > 0 || ownedLotCount > 0) {
+      throw new BadRequestException(
+        `Cannot create a partner deal for "${book.title}" because this title already has store-owned procurement history.`,
+      );
+    }
+  }
+
   async list(
     actorUserId: string,
     query?: { status?: PartnerDealStatus; q?: string },
@@ -102,11 +130,7 @@ export class PartnerDealsService {
       if (!lead) throw new NotFoundException('Linked lead not found');
     }
     if (dto.bookId) {
-      const book = await this.prisma.book.findUnique({
-        where: { id: dto.bookId },
-        select: { id: true },
-      });
-      if (!book) throw new NotFoundException('Linked book not found');
+      await this.assertBookEligibleForConsignment(dto.bookId);
     }
 
     return this.prisma.partnerConsignmentDeal.create({
@@ -233,6 +257,10 @@ export class PartnerDealsService {
       throw new BadRequestException(
         'effectiveTo cannot be earlier than effectiveFrom',
       );
+    }
+
+    if (dto.bookId && dto.bookId !== existing.bookId) {
+      await this.assertBookEligibleForConsignment(dto.bookId);
     }
 
     return this.prisma.partnerConsignmentDeal.update({

@@ -39,7 +39,7 @@ export const useClerkSession = () => {
   const { isLoaded, isSignedIn, getToken } = useAuth()
   const { signOut } = useClerk()
   const { user: clerkUser } = useUser()
-  const { login, logout, portalMode, setPortalMode } = useAuthStore()
+  const { login, logout, portalMode, setPortalMode, token, isAuthenticated } = useAuthStore()
   const [sessionReady, setSessionReady] = useState(false)
 
   useEffect(() => {
@@ -78,7 +78,10 @@ export const useClerkSession = () => {
       }
 
       if (!isSignedIn) {
-        logout()
+        // Preserve legacy JWT sessions when Clerk is enabled but unused.
+        if (isAuthenticated && !token) {
+          logout()
+        }
         if (active) setSessionReady(true)
         return
       }
@@ -112,9 +115,11 @@ export const useClerkSession = () => {
     isSignedIn,
     login,
     logout,
+    isAuthenticated,
     portalMode,
     setPortalMode,
     signOut,
+    token,
   ])
 
   return { sessionReady }

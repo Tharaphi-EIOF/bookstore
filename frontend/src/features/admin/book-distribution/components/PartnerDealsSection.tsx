@@ -2,8 +2,6 @@ import type { PartnerDeal, PartnerDealStatus } from '@/features/admin/services/p
 import {
   PARTNER_DEAL_STATUS_OPTIONS,
   getDealLinkedBookLabel,
-  type DealFormState,
-  type DistributionBook,
 } from '@/features/admin/book-distribution/lib/bookDistributionDisplay'
 
 type PartnerDealsSectionProps = {
@@ -11,13 +9,8 @@ type PartnerDealsSectionProps = {
   onDealFilterChange: (value: PartnerDealStatus | '') => void
   dealSearch: string
   onDealSearchChange: (value: string) => void
-  dealForm: DealFormState
-  onDealFormChange: (value: DealFormState) => void
-  books: DistributionBook[]
   deals: PartnerDeal[]
   isLoading: boolean
-  isCreatingDeal: boolean
-  onCreateDeal: () => void
   onUpdateDealStatus: (dealId: string, status: PartnerDealStatus) => void
 }
 
@@ -28,20 +21,15 @@ const PartnerDealsSection = ({
   onDealFilterChange,
   dealSearch,
   onDealSearchChange,
-  dealForm,
-  onDealFormChange,
-  books,
   deals,
   isLoading,
-  isCreatingDeal,
-  onCreateDeal,
   onUpdateDealStatus,
 }: PartnerDealsSectionProps) => (
   <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-5 dark:border-slate-800 dark:bg-slate-900/90">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-500">Partner Consignment Deals</h2>
-        <p className="mt-1 text-xs text-slate-500">Create the agreement first, then receive consignment stock separately in Receipts.</p>
+        <p className="mt-1 text-xs text-slate-500">Review and manage existing agreements here.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <select
@@ -64,63 +52,6 @@ const PartnerDealsSection = ({
         />
       </div>
     </div>
-
-    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-      <input
-        value={dealForm.partnerName}
-        onChange={(event) => onDealFormChange({ ...dealForm, partnerName: event.target.value })}
-        placeholder="Partner name"
-        className={inputClassName}
-      />
-      <input
-        value={dealForm.partnerCompany}
-        onChange={(event) => onDealFormChange({ ...dealForm, partnerCompany: event.target.value })}
-        placeholder="Company"
-        className={inputClassName}
-      />
-      <input
-        value={dealForm.partnerEmail}
-        onChange={(event) => onDealFormChange({ ...dealForm, partnerEmail: event.target.value })}
-        placeholder="Partner email"
-        className={inputClassName}
-      />
-      <input
-        type="number"
-        min={0}
-        max={100}
-        value={dealForm.revenueSharePct}
-        onChange={(event) => onDealFormChange({ ...dealForm, revenueSharePct: event.target.value })}
-        placeholder="Share %"
-        className={inputClassName}
-      />
-      <select
-        value={dealForm.bookId}
-        onChange={(event) => onDealFormChange({ ...dealForm, bookId: event.target.value })}
-        className={inputClassName}
-      >
-        <option value="">No linked book yet</option>
-        {books.slice(0, 400).map((book) => (
-          <option key={book.id} value={book.id}>
-            {book.title} - {book.author}
-          </option>
-        ))}
-      </select>
-      <button
-        type="button"
-        onClick={onCreateDeal}
-        disabled={isCreatingDeal}
-        className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white dark:bg-slate-100 dark:text-slate-900"
-      >
-        {isCreatingDeal ? 'Saving...' : 'Create Deal'}
-      </button>
-    </div>
-    <textarea
-      value={dealForm.termsNote}
-      onChange={(event) => onDealFormChange({ ...dealForm, termsNote: event.target.value })}
-      placeholder="Terms note (cycle, payout method, exclusions...)"
-      rows={2}
-      className="mt-3 w-full rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-    />
 
     <div className="mt-4 space-y-3">
       {deals.map((deal) => (

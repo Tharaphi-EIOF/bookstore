@@ -11,6 +11,14 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SearchBooksDto {
   @ApiPropertyOptional({
+    description: 'Unified search across title, author, and ISBN',
+    example: 'Harry Potter',
+  })
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter books by title (partial match)',
     example: 'Harry Potter',
   })

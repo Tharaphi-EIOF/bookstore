@@ -286,7 +286,7 @@ const AdminOrdersPage = () => {
       <div className="mx-auto max-w-7xl">
       <div className="mb-8">
         <AdminPageIntro title="Orders Management" className="mb-5" />
-        <div className="grid grid-cols-1 gap-4 mb-8 md:grid-cols-2 xl:grid-cols-6">
+        <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Stat label="Total Orders" value={allOrders.length} active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
         <Stat label="Pending" value={pendingOrders} valueClassName="text-yellow-600 dark:text-amber-300" active={statusFilter === 'PENDING'} onClick={() => setStatusFilter('PENDING')} />
         <Stat label="Confirmed" value={confirmedOrders} valueClassName="text-blue-600 dark:text-blue-300" active={statusFilter === 'CONFIRMED'} onClick={() => setStatusFilter('CONFIRMED')} />

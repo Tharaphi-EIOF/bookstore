@@ -149,8 +149,8 @@ const AdminInquiriesPage = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="px-1 py-2">
+    <div className="space-y-6 p-8 dark:text-slate-100">
+      <section className="py-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
