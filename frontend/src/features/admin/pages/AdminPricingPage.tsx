@@ -64,7 +64,7 @@ const AdminPricingPage = () => {
 
   return (
     <div className="surface-canvas min-h-screen p-8 dark:text-slate-100">
-      <div className="mx-auto max-w-4xl space-y-4">
+      <div className="mx-auto max-w-7xl space-y-4">
         <AdminPageIntro
           eyebrow="Commerce"
           title="Pricing"

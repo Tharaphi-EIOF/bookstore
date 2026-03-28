@@ -8,8 +8,6 @@ import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import Logo from '@/components/ui/Logo'
 
-const hasClerkConfigured = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY)
-
 const RegisterPage = () => {
   const navigate = useNavigate()
   const registerMutation = useRegister()
@@ -124,14 +122,6 @@ const RegisterPage = () => {
                   >
                     Create account
                   </Button>
-                  {hasClerkConfigured && (
-                    <Link
-                      to="/auth-testing/clerk/register"
-                      className="block text-center text-sm font-semibold text-slate-600 hover:text-primary-700 dark:text-slate-300"
-                    >
-                      Use Clerk test flow
-                    </Link>
-                  )}
                 </div>
               </form>
             </div>

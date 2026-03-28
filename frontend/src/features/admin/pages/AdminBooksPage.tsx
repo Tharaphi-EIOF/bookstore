@@ -108,15 +108,6 @@ const AdminBooksPage = ({
   }, [initialView, lockView])
 
   useEffect(() => {
-    const next =
-      searchParams.get('q') ?? searchParams.get('book') ?? searchParams.get('author') ?? ''
-    if (next !== searchTerm) {
-      setSearchTerm(next)
-      setPage(1)
-    }
-  }, [searchParams, searchTerm])
-
-  useEffect(() => {
     const next = new URLSearchParams()
     const trimmed = searchTerm.trim()
     if (trimmed) next.set('q', trimmed)

@@ -9,8 +9,6 @@ import Button from '@/components/ui/Button'
 import Logo from '@/components/ui/Logo'
 import { useState } from 'react'
 
-const hasClerkConfigured = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY)
-
 const LoginPage = () => {
   const loginMutation = useLogin()
   const forgotPasswordMutation = useForgotPassword()
@@ -173,14 +171,6 @@ const LoginPage = () => {
                       >
                         {showForgotPassword ? 'Close' : 'Forgot password?'}
                       </button>
-                      {hasClerkConfigured && (
-                        <Link
-                          to="/auth-testing/clerk/login"
-                          className="text-sm font-semibold text-slate-600 hover:text-primary-700 dark:text-slate-300"
-                        >
-                          Use Clerk test flow
-                        </Link>
-                      )}
                     </div>
                   </div>
 

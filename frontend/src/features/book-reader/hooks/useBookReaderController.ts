@@ -227,6 +227,16 @@ export const useBookReaderController = () => {
     readerStageRef,
   })
 
+  const displayCurrentPage = inferredFormat === 'EPUB'
+    ? (epub.livePage ?? currentPage)
+    : currentPage
+  const displayTotalPages = inferredFormat === 'EPUB'
+    ? (epub.liveTotalPages ?? totalPages)
+    : totalPages
+  const displayProgressPercent = inferredFormat === 'EPUB'
+    ? (typeof epub.livePercent === 'number' ? epub.livePercent : progressPercent)
+    : progressPercent
+
   const pdf = usePdfReader({
     bookId,
     inferredFormat,
@@ -951,18 +961,18 @@ export const useBookReaderController = () => {
       isLightReaderTheme,
     },
     headerProps: {
-      currentPage,
+      currentPage: displayCurrentPage,
       formatSavedTime,
       lastSavedAt,
-      progressPercent,
+      progressPercent: displayProgressPercent,
       saveState,
       title: openData?.title ?? ebookState?.book.title ?? 'Reader',
-      totalPages,
+      totalPages: displayTotalPages,
     },
     progressBarProps: {
-      currentLabel: inferredFormat === 'PDF' ? `Page ${pdf.pdfPageNumber}` : `Page ${currentPage}`,
-      progressWidth: inferredFormat === 'PDF' ? (pdf.pdfPageCount ? (pdf.pdfPageNumber / pdf.pdfPageCount) * 100 : 0) : progressPercent,
-      valueLabel: inferredFormat === 'PDF' ? `${pdf.pdfPageCount} pages` : `${progressPercent.toFixed(1)}%`,
+      currentLabel: inferredFormat === 'PDF' ? `Page ${pdf.pdfPageNumber}` : `Page ${displayCurrentPage}`,
+      progressWidth: inferredFormat === 'PDF' ? (pdf.pdfPageCount ? (pdf.pdfPageNumber / pdf.pdfPageCount) * 100 : 0) : displayProgressPercent,
+      valueLabel: inferredFormat === 'PDF' ? `${pdf.pdfPageCount} pages` : `${displayProgressPercent.toFixed(1)}%`,
     },
     toolbarProps: {
       helpPanelMode,
@@ -1085,8 +1095,8 @@ export const useBookReaderController = () => {
       selectionAction: null,
     },
     footer: {
-      currentLabel: inferredFormat === 'PDF' ? `Page ${pdf.pdfPageNumber}` : `Page ${currentPage}`,
-      valueLabel: inferredFormat === 'PDF' ? `${pdf.pdfPageCount} pages` : `${progressPercent.toFixed(1)}%`,
+      currentLabel: inferredFormat === 'PDF' ? `Page ${pdf.pdfPageNumber}` : `Page ${displayCurrentPage}`,
+      valueLabel: inferredFormat === 'PDF' ? `${pdf.pdfPageCount} pages` : `${displayProgressPercent.toFixed(1)}%`,
       min: inferredFormat === 'PDF' ? 1 : 0,
       max: inferredFormat === 'PDF' ? Math.max(1, pdf.pdfPageCount) : 100,
       value: scrubValue,

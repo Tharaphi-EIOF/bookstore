@@ -9,8 +9,6 @@ const Layout = lazy(() => import('@/components/layout/Layout'))
 const HomePage = lazy(() => import('@/features/home/pages/HomePage'))
 const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'))
 const RegisterPage = lazy(() => import('@/features/auth/pages/RegisterPage'))
-const ClerkLoginPage = lazy(() => import('@/features/auth/pages/ClerkLoginPage'))
-const ClerkRegisterPage = lazy(() => import('@/features/auth/pages/ClerkRegisterPage'))
 const BooksPage = lazy(() => import('@/features/books/pages/BooksPage'))
 const BookDetailPage = lazy(() => import('@/features/books/pages/BookDetailPage'))
 const CartPage = lazy(() => import('@/features/commerce/pages/CartPage'))
@@ -74,14 +72,6 @@ const renderStaticAuthRoutes = ({ isAuthenticated, portalAccess }: StaticAuthPro
   <>
     <Route path="login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
     <Route path="register" element={isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />} />
-    <Route
-      path="auth-testing/clerk/login/*"
-      element={isAuthenticated ? <Navigate to="/" replace /> : <ClerkLoginPage />}
-    />
-    <Route
-      path="auth-testing/clerk/register/*"
-      element={isAuthenticated ? <Navigate to="/" replace /> : <ClerkRegisterPage />}
-    />
     <Route
       path="portal-select"
       element={

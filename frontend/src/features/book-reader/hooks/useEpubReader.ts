@@ -61,6 +61,9 @@ const useEpubReader = ({
   const [isTurningPage, setIsTurningPage] = useState(false)
   const [isEpubReady, setIsEpubReady] = useState(false)
   const [epubContainerReady, setEpubContainerReady] = useState(false)
+  const [livePage, setLivePage] = useState<number | null>(null)
+  const [liveTotalPages, setLiveTotalPages] = useState<number | null>(null)
+  const [livePercent, setLivePercent] = useState<number>(0)
   const [tocSearch, setTocSearch] = useState('')
   const [tocEntries, setTocEntries] = useState<TocEntry[]>([])
   const [isSearchingText, setIsSearchingText] = useState(false)
@@ -76,6 +79,80 @@ const useEpubReader = ({
   const appliedHighlightsRef = useRef(new Set<string>())
   const turnFallbackTimerRef = useRef<number | null>(null)
   const suppressSelectionDismissUntilRef = useRef(0)
+  const currentSpineIndexRef = useRef<number | null>(null)
+
+  const getLocationCount = useCallback((book: any): number | null => {
+    const locations = book?.locations
+    if (!locations) return null
+
+    const functionLength = typeof locations.length === 'function'
+      ? Number(locations.length())
+      : null
+    if (typeof functionLength === 'number' && Number.isFinite(functionLength) && functionLength > 0) {
+      return Math.max(1, Math.round(functionLength))
+    }
+
+    const numericTotal = Number(locations.total)
+    if (Number.isFinite(numericTotal) && numericTotal > 0) {
+      return Math.max(1, Math.round(numericTotal))
+    }
+
+    const rawLocations = Array.isArray(locations._locations)
+      ? locations._locations
+      : Array.isArray(locations.locations)
+        ? locations.locations
+        : null
+    if (rawLocations?.length) {
+      return rawLocations.length
+    }
+
+    return null
+  }, [])
+
+  const syncLiveLocationCount = useCallback((book: any) => {
+    const count = getLocationCount(book)
+    if (count) {
+      totalPagesRef.current = count
+      setLiveTotalPages(count)
+      return count
+    }
+
+    if (typeof totalPages === 'number' && totalPages > 0) {
+      totalPagesRef.current = totalPages
+      setLiveTotalPages(totalPages)
+      return totalPages
+    }
+
+    totalPagesRef.current = null
+    setLiveTotalPages(null)
+    return null
+  }, [getLocationCount, totalPages, totalPagesRef])
+
+  const getAdjacentSpineHref = useCallback((book: any, direction: 'prev' | 'next') => {
+    const spineItems = (book?.spine?.spineItems ?? []) as any[]
+    if (!spineItems.length) return null
+
+    const currentIndex = currentSpineIndexRef.current
+    const currentLocation = renditionRef.current?.currentLocation?.()
+    const activeHrefSource =
+      currentLocation?.start?.href
+      ?? (typeof currentLocation?.start?.index === 'number'
+        ? spineItems[currentLocation.start.index]?.href
+        : '')
+    const activeHref = String(activeHrefSource ?? '').toLowerCase()
+
+    let resolvedIndex = typeof currentIndex === 'number' ? currentIndex : null
+    if (resolvedIndex == null && activeHref) {
+      resolvedIndex = spineItems.findIndex((item) => String(item?.href ?? '').toLowerCase() === activeHref)
+    }
+    if (resolvedIndex == null || resolvedIndex < 0) return null
+
+    const nextIndex = direction === 'next' ? resolvedIndex + 1 : resolvedIndex - 1
+    if (nextIndex < 0 || nextIndex >= spineItems.length) return null
+
+    const target = spineItems[nextIndex]
+    return String(target?.href ?? '').trim() || null
+  }, [])
 
   const setEpubContainer = useCallback((node: HTMLDivElement | null) => {
     epubContainerRef.current = node
@@ -154,12 +231,19 @@ const useEpubReader = ({
     }, 2500)
 
     try {
+      const beforeCfi = latestCfiRef.current
       await Promise.race([
         direction === 'prev' ? rendition.prev() : rendition.next(),
         new Promise((_, reject) =>
           window.setTimeout(() => reject(new Error('EPUB_PAGE_TURN_TIMEOUT')), 2200),
         ),
       ])
+
+      const currentLocation = rendition.currentLocation?.()
+      const afterCfi = (currentLocation?.start?.cfi as string | undefined) ?? latestCfiRef.current
+      if (beforeCfi && afterCfi && beforeCfi === afterCfi) {
+        throw new Error('EPUB_PAGE_STALLED')
+      }
     } catch {
       const book = bookRef.current
       const currentCfi = latestCfiRef.current
@@ -187,6 +271,16 @@ const useEpubReader = ({
         }
       }
 
+      const adjacentHref = getAdjacentSpineHref(book, direction)
+      if (adjacentHref) {
+        try {
+          await rendition.display(adjacentHref)
+          return
+        } catch {
+          // ignore
+        }
+      }
+
       showMessage(direction === 'prev' ? 'You are at the beginning.' : 'You reached the end.')
     } finally {
       if (turnFallbackTimerRef.current) {
@@ -195,7 +289,7 @@ const useEpubReader = ({
       }
       setIsTurningPage(false)
     }
-  }, [isTurningPage, latestCfiRef, showMessage, totalPages])
+  }, [getAdjacentSpineHref, isTurningPage, latestCfiRef, showMessage, totalPages])
 
   const goToPrevPage = useCallback(async () => {
     await runEpubTurn('prev')
@@ -310,7 +404,6 @@ const useEpubReader = ({
           || lowerText === ''
 
         if (isFrontMatter) continue
-        if (rawText.length < 280) continue
 
         return section.href || item.href
       } catch {
@@ -399,8 +492,10 @@ const useEpubReader = ({
 
         try {
           await book.locations.generate(1200)
+          syncLiveLocationCount(book)
         } catch (error) {
           console.warn('[EPUB] Could not generate location map:', error)
+          syncLiveLocationCount(book)
         }
 
         rendition.on('selected', (cfiRange: string, contents: any) => {
@@ -441,6 +536,9 @@ const useEpubReader = ({
         rendition.on('relocated', (location: any) => {
           const cfi = location?.start?.cfi as string | undefined
           if (!cfi) return
+          if (typeof location?.start?.index === 'number') {
+            currentSpineIndexRef.current = location.start.index
+          }
 
           const now = Date.now()
           const last = lastRelocationSyncRef.current
@@ -462,17 +560,19 @@ const useEpubReader = ({
             }
           }
 
-          const total = totalPagesRef.current
+          const total = syncLiveLocationCount(book)
           const page = total && typeof rawPercent === 'number'
             ? Math.min(total, Math.max(1, Math.floor(rawPercent * total) + 1))
             : undefined
 
           latestCfiRef.current = cfi
           latestPercentRef.current = percent
+          setLivePercent(typeof percent === 'number' ? percent : 0)
 
           if (typeof page === 'number') {
             latestPageRef.current = page
             setPageInput(String(page))
+            setLivePage(page)
           }
           writeLastPosition(bookId, {
             page: typeof page === 'number' ? page : latestPageRef.current,
@@ -509,6 +609,9 @@ const useEpubReader = ({
       renditionRef.current = null
       bookRef.current = null
       setIsEpubReady(false)
+      setLivePage(null)
+      setLiveTotalPages(null)
+      setLivePercent(0)
       setTocEntries([])
     }
   }, [
@@ -520,6 +623,8 @@ const useEpubReader = ({
     latestCfiRef,
     latestPageRef,
     latestPercentRef,
+    getAdjacentSpineHref,
+    getLocationCount,
     queueProgressSave,
     readerStageRef,
     resolvedAssetUrl,
@@ -528,6 +633,7 @@ const useEpubReader = ({
     setPageInput,
     settings.pageView,
     showMessage,
+    syncLiveLocationCount,
     totalPagesRef,
     writeLastPosition,
   ])
@@ -618,6 +724,9 @@ const useEpubReader = ({
     epubError,
     isTurningPage,
     isEpubReady,
+    livePage,
+    liveTotalPages,
+    livePercent,
     tocSearch,
     setTocSearch,
     filteredToc,
